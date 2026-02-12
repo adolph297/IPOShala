@@ -1,0 +1,50 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.nuxt/
+.output/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Editor/OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local/Temp files
+*.tmp
+*.bak
+vite.config.js.timestamp-*
+counts_check.txt
+fetch_log.txt
+mass_fetch_log.txt
+mass_fetch_log_v2.txt
+nse_fetch_log.txt
+nse_company_debug.json

@@ -1,0 +1,10 @@
+pandas
+pymongo
+python-dotenv
+requests
+beautifulsoup4
+python-dateutil
+yfinance
+nselib
+fastapi
+uvicorn
