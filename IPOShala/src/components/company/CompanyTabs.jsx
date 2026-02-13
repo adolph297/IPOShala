@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import ShareholdingDonut from "@/components/company/ShareholdingDonut";
 import TabLoader from "@/components/common/TabLoader";
 import CompanyTable from "@/components/company/CompanyTable";
 
@@ -56,12 +57,13 @@ const extractAnnouncementUrl = (r) =>
 
 /** ✅ NSE wrapper helpers */
 const isUnavailableSection = (obj) =>
-  obj && typeof obj === "object" && obj.__available__ === false;
+  obj && typeof obj === "object" && (obj.__available__ === false || obj.available === false);
 
 const unwrapNseSection = (obj) => {
   // selenium wrapper style { __available__, data, url }
-  if (obj && typeof obj === "object" && "__available__" in obj) {
-    return obj.data;
+  if (obj && typeof obj === "object") {
+    if ("__available__" in obj) return obj.data;
+    if ("available" in obj) return obj.payload;
   }
   return obj;
 };
@@ -256,6 +258,7 @@ const TabContent = ({
   if (tab === "dashboard") {
     const q = extractQuote(data?.quote);
     const preview = tabsMeta?.tabs?.announcements?.preview || [];
+    const shareholding = tabsMeta?.tabs?.shareholding_pattern?.data || {};
     const isUp = Number(quoteValue(q, "change") ?? 0) >= 0;
 
     return (
@@ -332,6 +335,20 @@ const TabContent = ({
           >
             View All Announcements →
           </button>
+        </div>
+
+        {/* shareholding preview */}
+        <div className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900">Shareholding Pattern</h3>
+            <button
+              className="text-xs text-blue-600 hover:underline font-medium"
+              onClick={() => setActive("shareholding_pattern")}
+            >
+              Details →
+            </button>
+          </div>
+          <ShareholdingDonut data={shareholding} />
         </div>
       </div>
     );
@@ -448,8 +465,7 @@ const TabContent = ({
 
   /** ✅ ANNOUNCEMENTS */
   if (tab === "announcements") {
-    const rows =
-      Array.isArray(data) ? data : Array.isArray(data?.payload) ? data.payload : [];
+    const rows = safeArray(unwrapNseSection(data));
 
     return (
       <div>
@@ -519,7 +535,7 @@ const TabContent = ({
 
   /** ✅ CORPORATE ACTIONS */
   if (tab === "corporate_actions") {
-    const rows = safeArray(data);
+    const rows = safeArray(unwrapNseSection(data));
     return (
       <CompanyTable
         title="Corporate Actions"
@@ -538,7 +554,7 @@ const TabContent = ({
 
   /** ✅ ANNUAL REPORTS */
   if (tab === "annual_reports") {
-    const rows = safeArray(data);
+    const rows = safeArray(unwrapNseSection(data));
     return (
       <CompanyTable
         title="Annual Reports"
@@ -567,7 +583,7 @@ const TabContent = ({
 
   /** ✅ BRSR REPORTS */
   if (tab === "brsr_reports") {
-    const rows = safeArray(data);
+    const rows = safeArray(unwrapNseSection(data));
     return (
       <CompanyTable
         title="BRSR Reports"
@@ -596,7 +612,7 @@ const TabContent = ({
 
   /** ✅ BOARD MEETINGS */
   if (tab === "board_meetings") {
-    const rows = safeArray(data);
+    const rows = safeArray(unwrapNseSection(data));
     return (
       <CompanyTable
         title="Board Meetings"
@@ -634,10 +650,10 @@ const TabContent = ({
 
     if (isUnavailableSection(data) || isUnavailableSection(data?.data)) {
       return (
-        <div className="py-12 text-center">
+        <div className="py-12 text-center bg-white border rounded-xl shadow-sm mt-4">
           <div className="text-gray-400 mb-2">
             <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
           <div className="text-sm font-medium text-gray-900">Financial Results Not Available</div>
@@ -651,7 +667,7 @@ const TabContent = ({
     }
 
     return (
-      <div>
+      <div className="mt-4">
         <h3 className="text-sm font-semibold mb-3">Financial Results</h3>
         {rows.length > 0 ? (
           <CompanyTable
@@ -677,9 +693,9 @@ const TabContent = ({
             ]}
           />
         ) : (
-          <pre className="text-xs bg-gray-50 p-4 rounded overflow-auto">
-            {JSON.stringify(financials, null, 2)}
-          </pre>
+          <div className="py-8 text-center text-gray-500 text-sm italic">
+            No specific financial records found.
+          </div>
         )}
       </div>
     );
@@ -691,7 +707,7 @@ const TabContent = ({
 
     if (isUnavailableSection(data) || isUnavailableSection(data?.data)) {
       return (
-        <div className="py-12 text-center">
+        <div className="py-12 text-center bg-white border rounded-xl shadow-sm mt-4">
           <div className="text-gray-400 mb-2">
             <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -699,8 +715,8 @@ const TabContent = ({
           </div>
           <div className="text-sm font-medium text-gray-900">Shareholding Pattern Not Available</div>
           <p className="text-xs text-gray-500 mt-1">NSE has not yet published the shareholding pattern for this security.</p>
-          {data?.url && (
-            <a href={data.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-4 inline-block">
+          {sh.source_url && (
+            <a href={sh.source_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-4 inline-block">
               Check NSE Source (JSON) →
             </a>
           )}
@@ -708,9 +724,77 @@ const TabContent = ({
       );
     }
 
-    if (!sh || Object.keys(sh).length === 0) {
-      return <div className="py-6 text-sm text-gray-500">No shareholding pattern available.</div>;
+
+
+    // Mock data for demonstration if no data is found
+    // Promoter & Promoter Group (Blue: #3b82f6), Public (Green: #10b981), Employee Trusts (Amber: #f59e0b)
+    const mockData = {
+      promoter: 74.50,
+      public: 24.10,
+      employee_trusts: 1.40
+    };
+
+    const hasData = sh.promoter || sh.public || sh.employee_trusts;
+    const chartData = hasData ? sh : mockData;
+
+    return (
+      <div className="mt-4 bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-tight">Shareholding Patterns (in %)</h3>
+          {!hasData && (
+            <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded border border-amber-100">
+              MOCK DATA (Pending Sync)
+            </span>
+          )}
+        </div>
+
+        <ShareholdingDonut data={sh} />
+
+        <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between">
+          <div className="text-[10px] text-gray-400 font-medium italic">
+            * Data source: NSE / XBRL {sh.source_url ? '(Live)' : '(Awaiting Sync)'}
+          </div>
+          {sh.source_url && (
+            <a href={sh.source_url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline">
+              View NSE Source →
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /** ✅ EVENT CALENDAR */
+  if (tab === "event_calendar") {
+    const rows = safeArray(unwrapNseSection(data));
+
+    if (isUnavailableSection(data)) {
+      return (
+        <div className="py-12 text-center bg-white border rounded-xl shadow-sm mt-4">
+          <div className="text-gray-400 mb-2">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div className="text-sm font-medium text-gray-900">Event Calendar Not Available</div>
+          <p className="text-xs text-gray-500 mt-1">No upcoming events found on NSE for this security.</p>
+        </div>
+      );
     }
+
+    return (
+      <div className="mt-4">
+        <CompanyTable
+          title="Event Calendar"
+          rows={rows}
+          columns={[
+            { key: "date", label: "Date" },
+            { key: "purpose", label: "Purpose" },
+            { key: "desc", label: "Description" },
+          ]}
+        />
+      </div>
+    );
   }
 
   // fallback

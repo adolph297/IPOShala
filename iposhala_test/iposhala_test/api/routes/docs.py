@@ -49,14 +49,32 @@ def get_doc_source_url(symbol: str, doc_type: str) -> Optional[str]:
 
     doc = ipo_past_master.find_one(
         {"symbol": symbol},
-        {"documents": 1, "symbol": 1, "_id": 0}
+        {"documents": 1, "ipo_docs": 1, "symbol": 1, "_id": 0}
     )
 
     if not doc:
         return None
 
+    # Try top-level 'documents' first
     documents = doc.get("documents") or {}
-    return documents.get(doc_type)
+    url = documents.get(doc_type)
+    if url:
+        return url
+    
+    # Fallback to 'ipo_docs'
+    ipo_docs = doc.get("ipo_docs") or {}
+    mapping = {
+        "security_pre": "pre-anchor",
+        "security_post": "post-anchor",
+        "anchor-allocation": "anchor-allocation"
+    }
+    
+    source_key = mapping.get(doc_type, doc_type)
+    doc_entry = ipo_docs.get(source_key)
+    if isinstance(doc_entry, dict) and doc_entry.get("available"):
+        return doc_entry.get("source_url")
+
+    return None
 
 
 def get_nse_session() -> requests.Session:

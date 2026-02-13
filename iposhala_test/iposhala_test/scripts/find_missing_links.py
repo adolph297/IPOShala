@@ -88,9 +88,9 @@ def main():
     except Exception: # Catch any exception during warmup
         pass
 
-    # Limit to first 50 IPOs (to cover E2ERAIL at index 30)
-    new_ipos_to_process = rows[:50]
-    print(f"🎯 Targeted processing: First 50 IPOs.")
+    # Limit to rows 14-25 (index 12 to 24 as reader starts after header)
+    new_ipos_to_process = rows[12:24]
+    print(f"🎯 Targeted processing: First {len(new_ipos_to_process)} IPOs.")
 
     for i, row in enumerate(new_ipos_to_process, start=1):
         symbol = row.get("Symbol", "").strip().upper()
@@ -116,7 +116,7 @@ def main():
             
             try:
                 # Try with timeout and follow redirects
-                res = session.head(url, timeout=12, allow_redirects=True)
+                res = session.get(url, timeout=10, allow_redirects=True, stream=True)
                 
                 if res.status_code == 200:
                     row[col] = url
@@ -124,17 +124,19 @@ def main():
                     total_found += 1
                     print(f"\n  ✅ Found {col}: {url}")
                 elif res.status_code == 404:
-                    # Try alternative extension if zip failed
-                    ext_to_check = ".pdf" if ".zip" in url else ".zip"
+                    # Try alternative extension if zip/pdf failed
                     alt_url = url.replace(".zip", ".pdf") if ".zip" in url else url.replace(".pdf", ".zip")
                     
-                    res_alt = session.head(alt_url, timeout=12, allow_redirects=True)
+                    res_alt = session.get(alt_url, timeout=10, allow_redirects=True, stream=True)
                     if res_alt.status_code == 200:
                         row[col] = alt_url
                         row_updated = True
                         total_found += 1
                         print(f"\n  ✅ Found {col}: {alt_url}")
-            except Exception:
+                else:
+                    print(f"\n  [DEBUG] {symbol} {col}: status {res.status_code}")
+            except Exception as e:
+                print(f"\n  [ERROR] {symbol} {col}: {e}")
                 pass
 
         if row_updated:

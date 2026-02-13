@@ -24,7 +24,7 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
 # =========================
 # CONFIG
 # =========================
-INPUT_CSV = os.path.join(BASE_DIR, "data", "IPO_Past_Issues_main.m.csv")
+INPUT_CSV = os.path.join(BASE_DIR, "data", "IPO_bidding_centers_updated.csv")
 OUTPUT_CSV = os.path.join(BASE_DIR, "data", "company_descriptions.csv")
 
 MAX_WORKERS = 8
@@ -119,13 +119,18 @@ def serper_search(company_name):
     payload = {"q": query, "num": 5}
 
     try:
+        print(f"DEBUG: Searching for {company_name}...")
         r = requests.post(SERPER_ENDPOINT, headers=headers, json=payload, timeout=TIMEOUT)
         if r.status_code != 200:
+            print(f"DEBUG: Serper Error {r.status_code} - {r.text}")
             return []
         data = r.json()
         results = data.get("organic", [])
-        return [item["link"] for item in results if "link" in item]
-    except:
+        links = [item["link"] for item in results if "link" in item]
+        print(f"DEBUG: Found {len(links)} links for {company_name}")
+        return links
+    except Exception as e:
+        print(f"DEBUG: Serper Exception {e}")
         return []
 
 
@@ -133,7 +138,12 @@ def serper_search(company_name):
 # EXTRACT DESCRIPTION
 # =========================
 def extract_description(html):
-    soup = BeautifulSoup(html, "lxml")
+    print(f"DEBUG: Extracting from {len(html)} bytes...")
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception as e:
+        print(f"DEBUG: BeautifulSoup Error: {e}")
+        return ""
 
     keywords = [
         "About the Company",
@@ -149,25 +159,35 @@ def extract_description(html):
     for kw in keywords:
         node = soup.find(string=re.compile(re.escape(kw), re.I))
         if node:
+            print(f"DEBUG: Found keyword '{kw}'")
             parent = node.find_parent()
             if parent:
                 text = normalize_text(parent.get_text(" ", strip=True))
+                print(f"DEBUG: Parent text length: {len(text)}")
                 text = truncate_words(text)
                 if len(text.split()) >= MIN_WORDS and not is_generic(text):
+                    print(f"DEBUG: Selected text from keyword '{kw}'")
                     return text
+                else:
+                    print(f"DEBUG: Text rejected (Length: {len(text.split())}, Generic: {is_generic(text)})")
 
     # Fallback paragraphs
     paras = []
+    print("DEBUG: Trying fallback paragraphs...")
     for p in soup.find_all("p"):
         t = normalize_text(p.get_text(" ", strip=True))
         if len(t) > 80:
             paras.append(t)
 
     paras = sorted(set(paras), key=len, reverse=True)
+    print(f"DEBUG: Found {len(paras)} candidate paragraphs")
     if paras:
         text = truncate_words(" ".join(paras[:2]))
         if not is_generic(text):
+            print("DEBUG: Selected text from paragraphs")
             return text
+        else:
+            print("DEBUG: Paragraph text rejected as generic")
 
     return ""
 
@@ -179,6 +199,7 @@ def fetch_company(company_name):
     urls = serper_search(company_name)
 
     for url in urls:
+        print(f"DEBUG: Visiting {url}...")
         html = http_get(url)
         if not html:
             continue
@@ -199,19 +220,46 @@ def main():
     if "COMPANY NAME" not in df.columns:
         raise ValueError("CSV must contain COMPANY NAME column")
 
-    results = []
+    # Deduplicate by COMPANY NAME
+    df = df.drop_duplicates(subset=["COMPANY NAME"])
+    print(f"Total unique companies: {len(df)}")
 
+    # Check for existing work
+    existing = set()
+    if os.path.exists(OUTPUT_CSV):
+        try:
+            existing_df = pd.read_csv(OUTPUT_CSV)
+            if "Company Name" in existing_df.columns:
+                existing = set(existing_df[existing_df["description"].notna()]["Company Name"])
+            print(f"Skipping {len(existing)} companies with existing descriptions.")
+        except:
+            pass
+    
+    # Filter df
+    target_df = df[~df["COMPANY NAME"].isin(existing)]
+    print(f"Processing {len(target_df)} remaining companies...")
+
+    results = [] # In reality this should load existing results if appending, but here we might prefer to just append to file or rewrite.
+    # To keep it simple, we will rewrite the file with OLD + NEW results if we want to be safe, 
+    # OR just append new results to a file if we use mode='a'.
+    # For now, let's just collect all results (including existing?) No, that's complex.
+    # Let's just process remaining and APPEND to file.
+    
+    # We will write header only if file doesn't exist.
+    write_header = not os.path.exists(OUTPUT_CSV)
+    
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(fetch_company, row["COMPANY NAME"]): row
-            for _, row in df.iterrows()
+            for _, row in target_df.iterrows()
         }
 
         for i, future in enumerate(as_completed(futures)):
             row = futures[future]
             try:
                 desc = future.result()
-            except Exception:
+            except Exception as e:
+                print(f"DEBUG: Future Exception: {e}")
                 desc = ""
 
             results.append({
@@ -223,8 +271,11 @@ def main():
             if i % 10 == 0:
                 print(f"Processed: {i}/{len(df)} - {row['COMPANY NAME']}")
 
-    pd.DataFrame(results).to_csv(OUTPUT_CSV, index=False, encoding="utf-8")
-    print("Done. Saved to", OUTPUT_CSV)
+    if results:
+        pd.DataFrame(results).to_csv(OUTPUT_CSV, mode='a', header=write_header, index=False, encoding="utf-8")
+        print(f"Done. Appended {len(results)} rows to {OUTPUT_CSV}")
+    else:
+        print("No new descriptions fetched.")
 
 
 if __name__ == "__main__":

@@ -42,6 +42,35 @@ def get_ipo_by_symbol(symbol: str):
     if not ipo:
         raise HTTPException(status_code=404, detail="IPO symbol not found")
     
+    # ✅ Synthesize 'documents' and 'issue_information' for legacy/inconsistent data
+    if not ipo.get("documents"):
+        ipo_docs = ipo.get("ipo_docs", {})
+        if ipo_docs:
+            mapping = {
+                "ratios": "ratios",
+                "rhp": "rhp",
+                "bidding_centers": "bidding_centers",
+                "forms": "forms",
+                "security_pre": "pre-anchor",
+                "security_post": "post-anchor",
+                "anchor-allocation": "anchor-allocation"
+            }
+            ipo["documents"] = {}
+            for target, source in mapping.items():
+                val = ipo_docs.get(source)
+                if isinstance(val, dict) and val.get("available"):
+                    ipo["documents"][target] = val.get("source_url")
+
+    if not ipo.get("issue_information"):
+        add_docs = ipo.get("additional_docs", {})
+        if add_docs:
+            ipo["issue_information"] = {
+                "asba_circular_pdf": add_docs.get("asba_circular"),
+                "upi_asba_video": add_docs.get("upi_asba_video"),
+                "bhim_upi_registration_video": add_docs.get("bhim_upi_video"),
+                "anchor_allocation_zip": ipo.get("documents", {}).get("anchor-allocation")
+            }
+
     # ✅ Flatten issue_information for easier frontend access
     info = ipo.get("issue_information", {})
     if info:

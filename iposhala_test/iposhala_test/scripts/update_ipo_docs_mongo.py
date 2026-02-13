@@ -6,9 +6,9 @@ from pymongo import MongoClient
 
 MONGO_URI = "mongodb://localhost:27017"  # change if needed
 DB_NAME = "iposhala"
-COLLECTION = "ipo_companies"
+COLLECTION = "ipo_past_master"
 
-INPUT = "data/IPO_bidding_centers_updated.csv"
+INPUT = "iposhala_test/iposhala_test/data/IPO_bidding_centers_updated.csv"
 
 # ----------------
 
@@ -22,7 +22,7 @@ DOC_MAP = {
     "doc_forms": "forms",
     "doc_security_pre": "pre-anchor",
     "doc_security_post": "post-anchor",
-    "doc_anchor": "anchor-allocation",
+    "Anchor_Allocation_ZIP": "anchor-allocation",
 }
 
 now = datetime.utcnow()
