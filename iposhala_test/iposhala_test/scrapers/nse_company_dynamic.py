@@ -111,9 +111,10 @@ def _fetch_with_index_fallback(symbol: str, url_builder):
         try:
             url = url_builder(idx)
             res = _safe_get_json(s, url)
-            if res.get("__available__"):
+            # Only return if available AND has data (non-empty list/dict)
+            if res.get("__available__") and res.get("data"):
                 return res
-            last_err = Exception(f"Not available in {idx}")
+            last_err = Exception(f"Not available or empty in {idx}")
         except Exception as e:
             last_err = e
 

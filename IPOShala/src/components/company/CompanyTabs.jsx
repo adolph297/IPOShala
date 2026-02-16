@@ -16,6 +16,7 @@ import {
   getEventCalendar,
   getCompanyHistorical, // ✅ ADDED
 } from "@/services/company";
+import FinancialResultsChart from "@/components/company/FinancialResultsChart";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard" },
@@ -292,8 +293,10 @@ const TabContent = ({
         </div>
 
         {/* announcements preview */}
-        <div className="border rounded-lg p-4">
-          <div className="text-sm font-semibold mb-3">Latest Announcements</div>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
+            Latest Announcements
+          </div>
 
           {preview.length === 0 ? (
             <div className="text-sm text-gray-500">No announcements.</div>
@@ -338,11 +341,11 @@ const TabContent = ({
         </div>
 
         {/* shareholding preview */}
-        <div className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Shareholding Pattern</h3>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
+            <h3 className="text-sm font-semibold">Shareholding Pattern</h3>
             <button
-              className="text-xs text-blue-600 hover:underline font-medium"
+              className="text-xs text-blue-300 hover:text-white hover:underline font-medium"
               onClick={() => setActive("shareholding_pattern")}
             >
               Details →
@@ -360,8 +363,8 @@ const TabContent = ({
     const isUp = Number(quoteValue(q, "change") ?? 0) >= 0;
 
     return (
-      <div>
-        <h3 className="text-sm font-semibold mb-4">Quote</h3>
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">Quote</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="border rounded-lg p-4">
@@ -399,8 +402,8 @@ const TabContent = ({
 
     if (!rows.length) {
       return (
-        <div>
-          <h3 className="text-sm font-semibold mb-3">Historical Data</h3>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">Historical Data</h3>
           <div className="py-6 text-sm text-gray-500">
             No historical data found.
           </div>
@@ -428,8 +431,8 @@ const TabContent = ({
     ];
 
     return (
-      <div>
-        <h3 className="text-sm font-semibold mb-4">Historical Data</h3>
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">Historical Data</h3>
 
         <div className="overflow-auto border rounded-lg">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -468,8 +471,8 @@ const TabContent = ({
     const rows = safeArray(unwrapNseSection(data));
 
     return (
-      <div>
-        <h3 className="text-sm font-semibold mb-3">Announcements</h3>
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">Announcements</h3>
 
         {rows.length === 0 ? (
           <div className="py-6 text-sm text-gray-500">No announcements.</div>
@@ -624,10 +627,11 @@ const TabContent = ({
           {
             key: "url",
             label: "Details",
-            render: (r) =>
-              r.url ? (
+            render: (r) => {
+              const url = extractAnnouncementUrl(r);
+              return url ? (
                 <a
-                  href={r.url}
+                  href={url}
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-600 hover:underline"
@@ -636,7 +640,8 @@ const TabContent = ({
                 </a>
               ) : (
                 "-"
-              ),
+              );
+            },
           },
         ]}
       />
@@ -668,9 +673,10 @@ const TabContent = ({
 
     return (
       <div className="mt-4">
-        <h3 className="text-sm font-semibold mb-3">Financial Results</h3>
+        {rows.length > 0 && <FinancialResultsChart results={rows} />}
         {rows.length > 0 ? (
           <CompanyTable
+            title="Financial Results"
             rows={rows}
             columns={[
               { key: "from_dt", label: "From" },
@@ -693,13 +699,19 @@ const TabContent = ({
             ]}
           />
         ) : (
-          <div className="py-8 text-center text-gray-500 text-sm italic">
-            No specific financial records found.
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <div className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
+              Financial Results
+            </div>
+            <div className="py-8 text-center text-gray-500 text-sm italic">
+              No specific financial records found.
+            </div>
           </div>
         )}
       </div>
     );
   }
+
 
   /** ✅ SHAREHOLDING PATTERN */
   if (tab === "shareholding_pattern") {
@@ -739,8 +751,8 @@ const TabContent = ({
 
     return (
       <div className="mt-4 bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-tight">Shareholding Patterns (in %)</h3>
+        <div className="flex items-center justify-between bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
+          <h3 className="text-sm font-semibold uppercase tracking-tight">Shareholding Patterns (in %)</h3>
           {!hasData && (
             <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded border border-amber-100">
               MOCK DATA (Pending Sync)

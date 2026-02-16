@@ -17,8 +17,10 @@ const Field = ({ label, value }) => (
 );
 
 const Card = ({ title, children }) => (
-  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-    <div className="text-sm font-semibold text-[#1a2332] mb-3">{title}</div>
+  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+    <div className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
+      {title}
+    </div>
     {children}
   </div>
 );

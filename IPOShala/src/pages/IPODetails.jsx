@@ -83,8 +83,8 @@ const IPODetails = () => {
         </div>
 
         {ipo?.description && (
-          <div className="mb-10 p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+          <div className="mb-10 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 uppercase tracking-widest">
               About the Company
             </h3>
             <div className="text-sm text-gray-700 leading-relaxed">
@@ -98,8 +98,8 @@ const IPODetails = () => {
           ipo.issue_information?.upi_asba_video ||
           ipo.issue_information?.bhim_upi_registration_video) && (
             <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#1a2332] mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
                 Application Guides & Tutorials
@@ -145,8 +145,8 @@ const IPODetails = () => {
         {/* ================= PROSPECTUS & RATIOS ================= */}
         {(ipo.documents?.rhp || ipo.documents?.ratios) && (
           <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#1a2332] mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
+              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               Official Prospectus & Ratios
@@ -181,8 +181,8 @@ const IPODetails = () => {
         {/* ================= ANCHOR ALLOCATION ================= */}
         {ipo.issue_information?.anchor_allocation_zip && (
           <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#1a2332] mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
+              <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
               Anchor Allocation
@@ -204,8 +204,8 @@ const IPODetails = () => {
         {/* ================= SUPPLEMENTARY DOCUMENTS ================= */}
         {(ipo.documents?.bidding_centers || ipo.documents?.forms || ipo.documents?.security_pre || ipo.documents?.security_post) && (
           <div className="mb-10 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#1a2332] mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
               Supplementary Documents & Centers
@@ -260,8 +260,8 @@ const IPODetails = () => {
         )}
 
         {/* ================= IPO DETAILS CARD ================= */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[#1a2332] mb-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
             IPO Details
           </h2>
 
