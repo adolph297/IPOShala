@@ -135,7 +135,7 @@ def selenium_fetch_financial_results(symbol: str):
 def selenium_fetch_shareholding_pattern(symbol: str):
     return _fetch_with_index_fallback(
         symbol,
-        lambda idx: f"https://www.nseindia.com/api/corporates-share-holding-pattern?index={idx}&symbol={symbol}"
+        lambda idx: f"https://www.nseindia.com/api/corporate-share-holdings-master?index={idx}&symbol={symbol}"
     )
 
 

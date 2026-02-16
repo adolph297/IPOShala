@@ -550,6 +550,25 @@ const TabContent = ({
           { key: "recordDate", label: "Record Date" },
           { key: "bcStartDate", label: "BC Start" },
           { key: "bcEndDate", label: "BC End" },
+          {
+            key: "url",
+            label: "Link",
+            render: (r) => {
+              const url = extractAnnouncementUrl(r);
+              return url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  View
+                </a>
+              ) : (
+                "-"
+              );
+            },
+          },
         ]}
       />
     );
@@ -736,45 +755,22 @@ const TabContent = ({
       );
     }
 
-
-
-    // Mock data for demonstration if no data is found
-    // Promoter & Promoter Group (Blue: #3b82f6), Public (Green: #10b981), Employee Trusts (Amber: #f59e0b)
-    const mockData = {
-      promoter: 74.50,
-      public: 24.10,
-      employee_trusts: 1.40
-    };
-
-    const hasData = sh.promoter || sh.public || sh.employee_trusts;
-    const chartData = hasData ? sh : mockData;
-
     return (
-      <div className="mt-4 bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
-          <h3 className="text-sm font-semibold uppercase tracking-tight">Shareholding Patterns (in %)</h3>
-          {!hasData && (
-            <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded border border-amber-100">
-              MOCK DATA (Pending Sync)
-            </span>
-          )}
-        </div>
-
+      <div className="mt-4">
         <ShareholdingDonut data={sh} />
-
-        <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between">
-          <div className="text-[10px] text-gray-400 font-medium italic">
-            * Data source: NSE / XBRL {sh.source_url ? '(Live)' : '(Awaiting Sync)'}
-          </div>
-          {sh.source_url && (
-            <a href={sh.source_url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline">
-              View NSE Source →
+        {sh.source_url && (
+          <div className="text-right mt-2">
+            <a href={sh.source_url} target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-blue-600 hover:underline">
+              Source: NSE JSON
             </a>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     );
   }
+
+
+
 
   /** ✅ EVENT CALENDAR */
   if (tab === "event_calendar") {
@@ -803,6 +799,25 @@ const TabContent = ({
             { key: "date", label: "Date" },
             { key: "purpose", label: "Purpose" },
             { key: "desc", label: "Description" },
+            {
+              key: "url",
+              label: "Link",
+              render: (r) => {
+                const url = extractAnnouncementUrl(r);
+                return url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    View
+                  </a>
+                ) : (
+                  "-"
+                );
+              },
+            },
           ]}
         />
       </div>

@@ -41,13 +41,20 @@ def sort_by_latest(items: List[Dict], keys: List[str]) -> List[Dict]:
 
 def unwrap_section(section) -> List[Dict]:
     """
-    Supports both formats:
-    1) Old: [ {...}, {...} ]
-    2) New: { available: bool, payload: [...], source_url: str }
+    Supports multiple formats:
+    1) List: [ {...}, {...} ]
+    2) Selenim/New dict: { available: bool, payload: [...], source_url: str } or { data: [...] }
     """
-    if isinstance(section, dict) and "payload" in section:
-        payload = section.get("payload")
-        return payload if isinstance(payload, list) else []
+    if not section:
+        return []
+    if isinstance(section, dict):
+        if "payload" in section:
+            return section.get("payload") or []
+        if "data" in section:
+            return section.get("data") or []
+        # Support selenium style __available__ or available flags
+        if "__available__" in section:
+            return section.get("data") or []
     return section if isinstance(section, list) else []
 
 
@@ -108,12 +115,8 @@ def company_announcements(
     offset: int = Query(0, ge=0),
 ):
     doc = fetch(symbol, {"nse_company.announcements": 1})
-    sym = normalize_symbol(symbol)
-
     section = (doc.get("nse_company") or {}).get("announcements")
     items = unwrap_section(section)
-
-    items = [x for x in items if normalize_symbol(x.get("symbol", "")) == sym]
     items = sort_by_latest(items, ["sort_date", "an_dt", "dt"])
     return paginate(items, limit, offset)
 
@@ -143,12 +146,8 @@ def company_annual_reports(
     offset: int = Query(0, ge=0),
 ):
     doc = fetch(symbol, {"nse_company.annual_reports": 1})
-    sym = normalize_symbol(symbol)
-
     section = (doc.get("nse_company") or {}).get("annual_reports")
     items = unwrap_section(section)
-
-    items = [x for x in items if normalize_symbol(x.get("symbol", "")) == sym]
     items = sort_by_latest(items, ["sort_date", "an_dt", "dt"])
     return paginate(items, limit, offset)
 
@@ -203,8 +202,8 @@ def company_event_calendar(
     offset: int = Query(0, ge=0),
 ):
     doc = fetch(symbol, {"nse_company.event_calendar": 1})
-    items = (doc.get("nse_company") or {}).get("event_calendar", [])
-    items = as_list(items)
+    section = (doc.get("nse_company") or {}).get("event_calendar")
+    items = unwrap_section(section)
     items = sort_by_latest(items, ["date", "sort_date"])
     return paginate(items, limit, offset)
 
@@ -214,8 +213,19 @@ def company_event_calendar(
 # ---------------------------
 @router.get("/{symbol}/shareholding-pattern")
 def company_shareholding_pattern(symbol: str):
-    doc = fetch(symbol, {"nse_company.shareholding_pattern": 1})
-    return (doc.get("nse_company") or {}).get("shareholding_pattern", {}) or {}
+    doc = fetch(symbol, {
+        "nse_company.shareholding_pattern": 1,
+        "nse_company.shareholding_patterns": 1
+    })
+    nse = doc.get("nse_company") or {}
+    
+    # Priority 1: New historical plural
+    plural = nse.get("shareholding_patterns")
+    if plural and isinstance(plural, list):
+        return plural
+        
+    # Priority 2: Singular
+    return nse.get("shareholding_pattern", {}) or {}
 
 
 # ---------------------------
@@ -267,6 +277,7 @@ def company_tabs_summary(symbol: str):
         "nse_company.event_calendar": 1,
         "nse_company.board_meetings": 1,
         "nse_company.shareholding_pattern": 1,
+        "nse_company.shareholding_patterns": 1,
         "nse_company.financial_results": 1,
     })
 
@@ -279,7 +290,8 @@ def company_tabs_summary(symbol: str):
     event_calendar = unwrap_section(nse_company.get("event_calendar"))
     board_meetings = unwrap_section(nse_company.get("board_meetings"))
 
-    shareholding = nse_company.get("shareholding_pattern") or {}
+    # Handle shareholding pattern logic for tabs summary
+    shareholding = nse_company.get("shareholding_patterns") or nse_company.get("shareholding_pattern") or {}
     financials = nse_company.get("financial_results") or {}
 
     ANN_PREVIEW = 5
