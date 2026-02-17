@@ -60,6 +60,11 @@ const IPODetails = () => {
       : `border-gray-300 ${baseBg} hover:bg-[#1e2a3a] hover:text-white hover:border-[#1e2a3a] text-[#1e2a3a]`
     }`;
 
+  // Helper for NSE attachment links
+  const extractAnnouncementUrl = (r) =>
+    r?.attchmntFile || r?.url || r?.link || r?.attachment || r?.pdf || null;
+
+  const financialResults = ipo?.nse_company?.financial_results?.payload || [];
 
   return (
     <>
@@ -202,62 +207,93 @@ const IPODetails = () => {
         )}
 
         {/* ================= SUPPLEMENTARY DOCUMENTS ================= */}
-        {(ipo.documents?.bidding_centers || ipo.documents?.forms || ipo.documents?.security_pre || ipo.documents?.security_post) && (
-          <div className="mb-10 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              Supplementary Documents & Centers
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              {ipo.documents?.bidding_centers && (
-                <a
-                  href={`${API_BASE}/api/docs/${sym}/bidding_centers`}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => markClicked("doc_bidding_centers")}
-                  className={getBtnClass("doc_bidding_centers", "bg-white")}
-                >
-                  Bidding Centers (PDF)
-                </a>
-              )}
-              {ipo.documents?.forms && (
-                <a
-                  href={`${API_BASE}/api/docs/${sym}/forms`}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => markClicked("doc_forms")}
-                  className={getBtnClass("doc_forms", "bg-white")}
-                >
-                  Sample Application Forms
-                </a>
-              )}
-              {ipo.documents?.security_pre && (
-                <a
-                  href={`${API_BASE}/api/docs/${sym}/security_pre`}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => markClicked("doc_security_pre")}
-                  className={getBtnClass("doc_security_pre", "bg-white")}
-                >
-                  Security Parameters (Pre)
-                </a>
-              )}
-              {ipo.documents?.security_post && (
-                <a
-                  href={`${API_BASE}/api/docs/${sym}/security_post`}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => markClicked("doc_security_post")}
-                  className={getBtnClass("doc_security_post", "bg-white")}
-                >
-                  Security Parameters (Post)
-                </a>
-              )}
+        {(ipo.documents?.bidding_centers ||
+          ipo.documents.forms ||
+          ipo.documents.security_pre ||
+          ipo.documents.security_post ||
+          true) && (
+            <div className="mb-10 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                Supplementary Documents & Centers
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                {ipo.documents?.bidding_centers && (
+                  <a
+                    href={`${API_BASE}/api/docs/${sym}/bidding_centers`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => markClicked("doc_bidding_centers")}
+                    className={getBtnClass("doc_bidding_centers", "bg-white")}
+                  >
+                    Bidding Centers (PDF)
+                  </a>
+                )}
+                {ipo.documents?.forms && (
+                  <a
+                    href={`${API_BASE}/api/docs/${sym}/forms`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => markClicked("doc_forms")}
+                    className={getBtnClass("doc_forms", "bg-white")}
+                  >
+                    Sample Application Forms
+                  </a>
+                )}
+                {ipo.documents?.security_pre && (
+                  <a
+                    href={`${API_BASE}/api/docs/${sym}/security_pre`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => markClicked("doc_security_pre")}
+                    className={getBtnClass("doc_security_pre", "bg-white")}
+                  >
+                    Security Parameters (Pre)
+                  </a>
+                )}
+                {ipo.documents?.security_post && (
+                  <a
+                    href={`${API_BASE}/api/docs/${sym}/security_post`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => markClicked("doc_security_post")}
+                    className={getBtnClass("doc_security_post", "bg-white")}
+                  >
+                    Security Parameters (Post)
+                  </a>
+                )}
+
+                {/* ✅ Financial Results Buttons */}
+                {financialResults.length > 0 ? (
+                  financialResults.slice(0, 4).map((f, i) => {
+                    const url = extractAnnouncementUrl(f);
+                    if (!url) return null;
+                    const key = `fin_res_${i}`;
+                    const label = f.to_dt ? `Financial Results (${f.to_dt})` : "Financial Results (PDF)";
+
+                    return (
+                      <a
+                        key={key}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => markClicked(key)}
+                        className={getBtnClass(key, "bg-white")}
+                      >
+                        {label}
+                      </a>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-sm font-medium text-gray-400 cursor-not-allowed">
+                    Financial Results: Not Available Yet
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* ================= IPO DETAILS CARD ================= */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">

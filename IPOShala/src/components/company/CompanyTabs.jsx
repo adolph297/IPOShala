@@ -27,7 +27,6 @@ const TABS = [
   { key: "annual_reports", label: "Annual Reports" },
   { key: "brsr_reports", label: "BRSR Reports" },
   { key: "shareholding_pattern", label: "Shareholding Pattern" },
-  { key: "financial_results", label: "Financial Results" },
   { key: "board_meetings", label: "Board Meetings" },
   { key: "event_calendar", label: "Event Calendar" },
 ];
@@ -157,9 +156,6 @@ const CompanyTabs = ({ symbol }) => {
             data = await getShareholdingPattern(cleanSymbol);
             break;
 
-          case "financial_results":
-            data = await getFinancialResults(cleanSymbol);
-            break;
 
           case "board_meetings":
             data = await getBoardMeetings(cleanSymbol);
@@ -667,69 +663,6 @@ const TabContent = ({
     );
   }
 
-  /** ✅ FINANCIAL RESULTS */
-  if (tab === "financial_results") {
-    const financials = data?.data || data || {};
-    const rows = safeArray(financials?.payload);
-
-    if (isUnavailableSection(data) || isUnavailableSection(data?.data)) {
-      return (
-        <div className="py-12 text-center bg-white border rounded-xl shadow-sm mt-4">
-          <div className="text-gray-400 mb-2">
-            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <div className="text-sm font-medium text-gray-900">Financial Results Not Available</div>
-          <p className="text-xs text-gray-500 mt-1">NSE has not yet published financial results for this security.</p>
-        </div>
-      );
-    }
-
-    if (!rows.length && !Object.keys(financials).length) {
-      return <div className="py-6 text-sm text-gray-500">No financial results available.</div>;
-    }
-
-    return (
-      <div className="mt-4">
-        {rows.length > 0 && <FinancialResultsChart results={rows} />}
-        {rows.length > 0 ? (
-          <CompanyTable
-            title="Financial Results"
-            rows={rows}
-            columns={[
-              { key: "from_dt", label: "From" },
-              { key: "to_dt", label: "To" },
-              { key: "desc", label: "Description" },
-              {
-                key: "url",
-                label: "Link",
-                render: (r) => (
-                  <a
-                    href={extractAnnouncementUrl(r)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    PDF
-                  </a>
-                ),
-              },
-            ]}
-          />
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
-              Financial Results
-            </div>
-            <div className="py-8 text-center text-gray-500 text-sm italic">
-              No specific financial records found.
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
 
 
   /** ✅ SHAREHOLDING PATTERN */
