@@ -14,6 +14,7 @@ const IPODetails = () => {
 
   // ✅ Track clicked buttons
   const [clickedDocs, setClickedDocs] = useState({});
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = useState(false);
 
   const markClicked = (key) => {
     setClickedDocs((prev) => ({
@@ -265,32 +266,110 @@ const IPODetails = () => {
                   </a>
                 )}
 
-                {/* ✅ Financial Results Buttons */}
-                {financialResults.length > 0 ? (
-                  financialResults.slice(0, 4).map((f, i) => {
-                    const url = extractAnnouncementUrl(f);
-                    if (!url) return null;
-                    const key = `fin_res_${i}`;
-                    const label = f.to_dt ? `Financial Results (${f.to_dt})` : "Financial Results (PDF)";
+                {/* ✅ Consolidated Financial Results Button & Modal */}
+                {(() => {
+                  const nseResults = ipo?.nse_company?.financial_results?.payload || [];
+                  const auditedIngested = ipo?.nse_company?.audited_financials || [];
 
+                  // Merge both, prioritizing unique years/periods
+                  const allFinancials = [...nseResults];
+                  auditedIngested.forEach((aud) => {
+                    const exists = allFinancials.some((f) => f.to_dt?.includes(aud.year) || f.desc?.includes(aud.year));
+                    if (!exists) {
+                      allFinancials.push({
+                        ...aud,
+                        is_audited: true,
+                        label: `Audited FY ${aud.year}`
+                      });
+                    }
+                  });
+
+                  // Sort desc by year/date roughly
+                  allFinancials.sort((a, b) => {
+                    const dateA = a.to_dt || a.year || "";
+                    const dateB = b.to_dt || b.year || "";
+                    return dateB.localeCompare(dateA);
+                  });
+
+                  if (allFinancials.length === 0) {
                     return (
-                      <a
-                        key={key}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => markClicked(key)}
-                        className={getBtnClass(key, "bg-white")}
-                      >
-                        {label}
-                      </a>
+                      <div className="px-3 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-sm font-medium text-gray-400 cursor-not-allowed">
+                        Financial Results: Not Available Yet
+                      </div>
                     );
-                  })
-                ) : (
-                  <div className="px-3 py-1.5 rounded-md border border-gray-200 bg-gray-50 text-sm font-medium text-gray-400 cursor-not-allowed">
-                    Financial Results: Not Available Yet
-                  </div>
-                )}
+                  }
+
+                  return (
+                    <>
+                      <button
+                        onClick={() => setIsFinancialModalOpen(true)}
+                        className={getBtnClass("financial_results", "bg-white")}
+                      >
+                        Financial Results ({allFinancials.length})
+                      </button>
+
+                      {isFinancialModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                          <div
+                            className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                              <div>
+                                <h3 className="font-semibold text-gray-900">Financial Results</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Audited & Quarterly Reports</p>
+                              </div>
+                              <button
+                                onClick={() => setIsFinancialModalOpen(false)}
+                                className="p-1.5 hover:bg-gray-200 rounded-full transition-colors text-gray-500 hover:text-gray-700"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+
+                            <div className="p-4 overflow-y-auto space-y-2.5">
+                              {allFinancials.map((f, i) => {
+                                const url = extractAnnouncementUrl(f);
+                                if (!url) return null;
+                                const key = `fin_res_${i}`;
+                                const label = f.label || (f.to_dt ? `Financial Results (${f.to_dt})` : "Financial Results (PDF)");
+
+                                return (
+                                  <a
+                                    key={key}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={() => markClicked(key)}
+                                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
+                                  >
+                                    <div className="p-2 bg-red-50 text-red-500 rounded-md group-hover:bg-red-100 transition-colors">
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-700">{label}</p>
+                                      <p className="text-xs text-gray-500 mt-0.5">PDF Document</p>
+                                    </div>
+                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                  </a>
+                                );
+                              })}
+                            </div>
+
+                            <div className="p-4 border-t border-gray-100 bg-gray-50 text-center">
+                              <button
+                                onClick={() => setIsFinancialModalOpen(false)}
+                                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+                              >
+                                Close
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

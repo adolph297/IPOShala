@@ -278,10 +278,11 @@ def company_tabs_summary(symbol: str):
         "nse_company.board_meetings": 1,
         "nse_company.shareholding_pattern": 1,
         "nse_company.shareholding_patterns": 1,
-        "nse_company.financial_results": 1,
+        "nse_company.audited_financials": 1,
     })
 
     nse_company = doc.get("nse_company") or {}
+    audited_reports = nse_company.get("audited_financials") or []
 
     announcements = unwrap_section(nse_company.get("announcements"))
     annual_reports = unwrap_section(nse_company.get("annual_reports"))
@@ -320,6 +321,10 @@ def company_tabs_summary(symbol: str):
             "financial_results": {
                 "exists": financials not in (None, {}, []),
                 "data": financials,
+            },
+            "audited_financials": {
+                "exists": len(audited_reports) > 0,
+                "data": audited_reports,
             },
         }
     }
