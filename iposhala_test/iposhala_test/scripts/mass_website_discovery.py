@@ -3,7 +3,7 @@ import os
 import sys
 import time
 import random
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from iposhala_test.scripts.mongo import ipo_past_master
 
 # Add project root to path
@@ -36,8 +36,7 @@ def search_website(company_name):
     try:
         with DDGS() as ddgs:
             # Fetch more results to filter locally
-            # Use backend='lite' again as html was worse
-            results = list(ddgs.text(query, max_results=10, backend='lite'))
+            results = list(ddgs.text(query, max_results=10))
             if results:
                 for r in results:
                     href = r['href']

@@ -278,6 +278,7 @@ def company_tabs_summary(symbol: str):
         "nse_company.board_meetings": 1,
         "nse_company.shareholding_pattern": 1,
         "nse_company.shareholding_patterns": 1,
+        "nse_company.financial_results": 1,
         "nse_company.audited_financials": 1,
     })
 
@@ -320,6 +321,7 @@ def company_tabs_summary(symbol: str):
             },
             "financial_results": {
                 "exists": financials not in (None, {}, []),
+                "count": len(financials.get("data", [])) if isinstance(financials, dict) else 0,
                 "data": financials,
             },
             "audited_financials": {

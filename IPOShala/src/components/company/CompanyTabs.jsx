@@ -11,12 +11,10 @@ import {
   getAnnualReports,
   getBRSRReports,
   getShareholdingPattern,
-  getFinancialResults,
   getBoardMeetings,
   getEventCalendar,
   getCompanyHistorical, // ✅ ADDED
 } from "@/services/company";
-import FinancialResultsChart from "@/components/company/FinancialResultsChart";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard" },
@@ -151,6 +149,7 @@ const CompanyTabs = ({ symbol }) => {
           case "brsr_reports":
             data = await getBRSRReports(cleanSymbol);
             break;
+
 
           case "shareholding_pattern":
             data = await getShareholdingPattern(cleanSymbol);
@@ -335,6 +334,7 @@ const TabContent = ({
             View All Announcements →
           </button>
         </div>
+
 
         {/* shareholding preview */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
@@ -598,6 +598,7 @@ const TabContent = ({
       />
     );
   }
+
 
   /** ✅ BRSR REPORTS */
   if (tab === "brsr_reports") {

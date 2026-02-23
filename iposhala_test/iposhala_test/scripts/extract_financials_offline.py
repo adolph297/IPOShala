@@ -5,6 +5,7 @@ import urllib3
 import json
 import time
 from datetime import datetime
+from mass_website_discovery import search_website
 
 # Disable insecure request warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -16,7 +17,14 @@ HEADERS = {
     'Connection': 'keep-alive',
 }
 
-# Websites from Batch 5
+from iposhala_test.scripts.mongo import ipo_past_master
+import sys
+import os
+
+# Add project root to path
+sys.path.append(os.getcwd())
+
+# Fallback WEBSITES if DB fails or for testing
 WEBSITES = {
     "EXCELSOFT": "https://www.excelsoftcorp.com",
     "CAPILLARY": "https://www.capillarytech.com",
@@ -120,6 +128,22 @@ WEBSITES = {
     "CPPLUS": "https://www.cpplusworld.com",
 }
 
+def get_companies_from_db(limit=None):
+   print("Fetching companies from MongoDB...")
+   query = {
+       "security_type": {"$in": ["EQ", "SME", "BE"]}
+   }
+   cursor = ipo_past_master.find(query, {"symbol": 1, "website": 1, "company_name": 1})
+   if limit:
+       cursor = cursor.limit(limit)
+   companies = {}
+   for doc in cursor:
+       symbol = doc.get('symbol')
+       if symbol:
+           companies[symbol] = doc.get('website')
+   print(f"Fetched {len(companies)} companies from DB.")
+   return companies
+
 def get_base_url(url):
     parts = url.split("/")
     return "/".join(parts[:3])
@@ -211,23 +235,131 @@ def extract_financials(symbol, website):
                     container = container.parent if container else None
                     if not container: break
 
+            # 2b. Extract Quarterly / Financial Results
+            qlinks = soup.find_all('a', href=True)
+            for l in qlinks:
+                ltext = l.get_text().strip()
+                lhref = l['href']
+                
+                # Keywords for Quarterly / Financial Results
+                if any(k in ltext.lower() for k in ["quarter", "financial result", "unaudited", "q1", "q2", "q3", "q4"]):
+                     # Exclude if it's likely an Annual Report (already handled)
+                    if "annual report" in ltext.lower():
+                        continue
+                        
+                    # Basic validation
+                    if ".pdf" in lhref.lower() or "pdf" in ltext.lower() or "view" in ltext.lower():
+                        full_url = lhref
+                        if not full_url.startswith('http'):
+                            full_url = get_base_url(url) + "/" + full_url.lstrip('/')
+                        
+                        # Create a label
+                        label = ltext
+                        if len(label) > 50:
+                            label = label[:47] + "..."
+                        
+                        # Clean up label
+                        label = re.sub(r'\s+', ' ', label).strip()
+
+                        # Attempt to extract a date or year if possible, otherwise use current year/date
+                        
+                        # Check for year pattern
+                        year_match = re.search(r'(\d{4}[-–—]\d{2,4})', ltext)
+                        year = year_match.group(1) if year_match else None
+                        
+                        found_reports.append({
+                            "url": full_url,
+                            "type": "Financial Result",
+                            "label": label,
+                            "year": year, 
+                            "period": "Quarterly" if "quarter" in ltext.lower() or any(q in ltext.lower() for q in ["q1","q2","q3","q4"]) else "Other"
+                        })
+
         except Exception as e:
             print(f"  Error scanning {url}: {e}")
 
-    # Deduplicate
+    # Deduplicate based on URL
     unique_reports = {}
-    for r in found_reports:
-        unique_reports[r["year"]] = r
     
-    final_list = sorted(unique_reports.values(), key=lambda x: x["year"], reverse=True)
+    # Merge extracted quarterly results into unique_reports (Wait, found_reports has Annual Reports, quarterly_reports has Quarterly)
+    # Actually, I should have appended to a list or dict.
+    # Let's fix the structure.
+    # I'll modify the loop to append found items to `found_reports` list, but with different types.
+    
+    # NO, I will just copy the logic above but append to found_reports directly.
+
+    
+
+
+    # Merge Annual Reports into the unique_reports dict
+    for r in found_reports:
+        # Create a label for Annual Reports if not exists
+        if "label" not in r:
+            r["label"] = f"Annual Report {r['year']}"
+        
+        # Use URL as ID to deduplicate
+        if r['url'] not in unique_reports:
+            unique_reports[r['url']] = r
+
+    final_list = list(unique_reports.values())
+    
+    # Sort: Annual Reports first (by year desc), then others
+    def sort_key(x):
+        # Primary sort: Year (descending)
+        y = x.get("year")
+        if y:
+            # Try to normalize year to start year for sorting
+            # e.g. 2023-24 -> 2023
+            try:
+                y_start = int(y.split('-')[0])
+                return (1, y_start)
+            except:
+                return (0, 0)
+        return (0, 0)
+
+    final_list.sort(key=sort_key, reverse=True)
+    
     return final_list
 
 def main():
     all_financials = {}
+
+    # Load existing if available
+    if os.path.exists('batch_5_financials.json'):
+        try:
+            with open('batch_5_financials.json', 'r') as f:
+                all_financials = json.load(f)
+            print(f"Loaded {len(all_financials)} existing records from batch_5_financials.json")
+        except:
+             print("Could not load existing file, starting fresh.")
     
-    total = len(WEBSITES)
-    for idx, (symbol, website) in enumerate(WEBSITES.items()):
+    # Merge DB companies with hardcoded ones (DB takes precedence if we want, or just use DB)
+    # Let's use DB primarily, and fall back to hardcoded if DB is empty
+    db_websites = get_companies_from_db(limit=None)
+    if db_websites:
+        target_websites = db_websites
+    else:
+        target_websites = WEBSITES
+
+    total = len(target_websites)
+    for idx, (symbol, website) in enumerate(target_websites.items()):
+        if symbol in all_financials:
+             print(f"[{idx+1}/{total}] Skipping {symbol}, already processed.")
+             continue
+
         print(f"[{idx+1}/{total}] Processing {symbol}...")
+        
+        # Dynamic discovery if website is missing or placeholder
+        if not website or website == "https://www.google.com":
+             print(f"  Website missing for {symbol}. Attempting discovery...")
+             found_url = search_website(symbol)
+             if found_url:
+                 website = found_url
+                 print(f"  Discovered: {website}")
+             else:
+                 print(f"  Could not find website for {symbol}. Skipping.")
+                 continue
+
         try:
             reports = extract_financials(symbol, website)
             if reports:
@@ -241,11 +373,13 @@ def main():
                 print(f"  No reports found for {symbol}")
         except Exception as e:
             print(f"  Critical error for {symbol}: {e}")
+
+        # Save every 5 iterations or at the end
+        if (idx + 1) % 5 == 0 or (idx + 1) == total:
+            print(f"Saving progress at {idx+1}/{total}...")
+            with open('batch_5_financials.json', 'w') as f:
+                json.dump(all_financials, f, indent=2)
             
-    # Save to JSON
-    with open('batch_5_financials.json', 'w') as f:
-        json.dump(all_financials, f, indent=2)
-    
     print("\nExtraction complete. Saved to batch_5_financials.json")
 
 if __name__ == "__main__":

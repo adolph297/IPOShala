@@ -65,18 +65,43 @@ const IPODetails = () => {
   const extractAnnouncementUrl = (r) =>
     r?.attchmntFile || r?.url || r?.link || r?.attachment || r?.pdf || null;
 
-  const financialResults = ipo?.nse_company?.financial_results?.payload || [];
 
   return (
     <>
-      <div className="bg-gray-50 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-bold text-[#1a2332]">
-            {ipo.company_name}
-          </h1>
+      <div className="bg-gray-50 border-b border-gray-200 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex justify-between items-center relative">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-[#1a2332]">
+              {ipo.company_name}
+            </h1>
 
-          <div className="mt-2 text-base text-gray-600">
-            Symbol: {ipo.symbol || symbol}
+            <div className="mt-2 text-base text-gray-600">
+              Symbol: {ipo.symbol || symbol}
+            </div>
+          </div>
+
+          {/* Logo Section */}
+          <div className="flex-shrink-0 ml-8 hidden sm:block">
+            {ipo.logo_url ? (
+              <div className="w-36 h-36 bg-white rounded-2xl shadow-md border border-gray-200 p-4 flex items-center justify-center overflow-hidden">
+                <img
+                  src={ipo.logo_url}
+                  alt={`${ipo.company_name} Logo`}
+                  className="max-w-full max-h-full object-contain"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                    e.target.parentNode.innerHTML = `<div class="text-[#1a2332] font-bold text-5xl">${ipo.company_name.charAt(0)}</div>`;
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="w-36 h-36 bg-white rounded-2xl shadow-md border border-gray-200 flex items-center justify-center">
+                <div className="text-[#1a2332] font-bold text-5xl">
+                  {ipo.company_name.charAt(0)}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -149,7 +174,8 @@ const IPODetails = () => {
           )}
 
         {/* ================= PROSPECTUS & RATIOS ================= */}
-        {(ipo.documents?.rhp || ipo.documents?.ratios) && (
+        {/* ================= PROSPECTUS & RATIOS ================= */}
+        {ipo?.documents && (ipo.documents.rhp || ipo.documents.ratios) && (
           <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
               <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,10 +235,12 @@ const IPODetails = () => {
 
         {/* ================= SUPPLEMENTARY DOCUMENTS ================= */}
         {(ipo.documents?.bidding_centers ||
-          ipo.documents.forms ||
-          ipo.documents.security_pre ||
-          ipo.documents.security_post ||
-          true) && (
+          ipo.documents?.forms ||
+          ipo.documents?.security_pre ||
+          ipo.documents?.security_post ||
+          (ipo.nse_company?.financial_results?.data || ipo.nse_company?.financial_results?.payload || []).length > 0 ||
+          (ipo.nse_company?.annual_reports?.data || ipo.nse_company?.annual_reports?.payload || []).length > 0 ||
+          (ipo.nse_company?.audited_financials || []).length > 0) && (
             <div className="mb-10 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <h3 className="text-sm font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6 flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,26 +296,53 @@ const IPODetails = () => {
 
                 {/* ✅ Consolidated Financial Results Button & Modal */}
                 {(() => {
-                  const nseResults = ipo?.nse_company?.financial_results?.payload || [];
-                  const auditedIngested = ipo?.nse_company?.audited_financials || [];
+                  const nse = ipo?.nse_company || {};
 
-                  // Merge both, prioritizing unique years/periods
-                  const allFinancials = [...nseResults];
+                  // Helper to unwrap [ {data: []} ] or [ {payload: []} ]
+                  const unwrap = (obj) => {
+                    if (!obj) return [];
+                    if (Array.isArray(obj)) return obj;
+                    // Support selenium wrapper { __available__, data } or { available, payload }
+                    const items = obj.data || obj.payload || [];
+                    return Array.isArray(items) ? items : [];
+                  };
+
+                  const financialResults = unwrap(nse.financial_results);
+                  const annualReports = unwrap(nse.annual_reports);
+                  const auditedIngested = Array.isArray(nse.audited_financials) ? nse.audited_financials : [];
+
+                  console.log("DEBUG Financials:", {
+                    symbol: sym,
+                    has_nse: !!ipo?.nse_company,
+                    fr_len: financialResults.length,
+                    ar_len: annualReports.length,
+                    af_len: auditedIngested.length,
+                    raw_fr: nse.financial_results
+                  });
+                  const allFinancials = [...annualReports, ...financialResults];
+
+                  // Add audited papers if not already covered by year
                   auditedIngested.forEach((aud) => {
-                    const exists = allFinancials.some((f) => f.to_dt?.includes(aud.year) || f.desc?.includes(aud.year));
+                    if (!aud?.year) return;
+                    const exists = allFinancials.some(f =>
+                      (f.year?.toString().includes(aud.year)) ||
+                      (f.m_yr?.toString().includes(aud.year)) ||
+                      (f.desc?.includes(aud.year))
+                    );
                     if (!exists) {
                       allFinancials.push({
                         ...aud,
                         is_audited: true,
-                        label: `Audited FY ${aud.year}`
+                        label: aud.label || `Audited FY ${aud.year}`,
+                        year: aud.year
                       });
                     }
                   });
 
                   // Sort desc by year/date roughly
                   allFinancials.sort((a, b) => {
-                    const dateA = a.to_dt || a.year || "";
-                    const dateB = b.to_dt || b.year || "";
+                    const dateA = (a.year || a.m_yr || a.to_dt || "").toString();
+                    const dateB = (b.year || b.m_yr || b.to_dt || "").toString();
                     return dateB.localeCompare(dateA);
                   });
 

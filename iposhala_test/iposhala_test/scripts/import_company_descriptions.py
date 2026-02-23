@@ -8,7 +8,7 @@ import re
 # CONFIG
 # =========================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INPUT_CSV = os.path.join(BASE_DIR, "data", "company_descriptions.csv")
+INPUT_CSV = os.path.join(BASE_DIR, "data", "company_descriptions_final_ai_updated.csv")
 
 def clean_description(desc):
     """Clean up unwanted technical strings or garbage from the description"""
