@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from .routes.ipos import router as ipos_router
 from .routes.company import router as company_router
 import requests
+from datetime import datetime
 from iposhala_test.api.routes.docs import router as docs_router
 
 
@@ -27,6 +28,69 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/ipos/closed")
+def get_closed_ipos():
+    docs = list(
+        ipo_past_master.find(
+            {},
+            {
+                "_id": 0,
+                "company_name": 1,
+                "symbol": 1,
+                "security_type": 1,
+                "issue_information.issue_end_date": 1,
+                "issue_information.issue_price": 1,
+                "issue_end_date": 1,
+                "nse_quote.metadata.listingDate": 1,
+                "price_range": 1
+            }
+        )
+    )
+
+    def parse_date(s):
+        if not s or s == "-":
+            return None
+        s = s.strip()
+        for fmt in ("%d-%b-%Y", "%d-%b-%y", "%Y-%m-%d", "%d-%m-%Y", "%B %d, %Y"):
+            try:
+                return datetime.strptime(s, fmt)
+            except Exception:
+                continue
+        return None
+
+    today = datetime.today()
+
+    closed = []
+    for d in docs:
+        info = d.get("issue_information") or {}
+        end_date_str = info.get("issue_end_date") or d.get("issue_end_date")
+        
+        # Look for listingDate from NSE quote metadata if still missing
+        if not end_date_str:
+            metadata = d.get("nse_quote", {}).get("metadata", {})
+            end_date_str = metadata.get("listingDate")
+
+        end_date = parse_date(end_date_str)
+        if end_date and end_date < today:
+            price = info.get("issue_price") or d.get("price_range") or "-"
+            
+            parsed = {
+                "company_name": d.get("company_name", d.get("symbol")),
+                "symbol": d.get("symbol"),
+                "security_type": d.get("security_type", "Equity"),
+                "issue_end_date": end_date_str if end_date_str else "-",
+                "issue_price": price,
+                "status": "Closed",
+                "_parsed_date": end_date # For sorting only
+            }
+            closed.append(parsed)
+
+    # sort latest closed first
+    closed.sort(key=lambda x: x.pop("_parsed_date"), reverse=True)
+
+    return closed
+
+
 app.include_router(ipos_router)
 app.include_router(company_router)
 app.include_router(docs_router)
@@ -35,7 +99,7 @@ app.include_router(docs_router)
 def get_closed_ipos():
     docs = list(
         ipo_past_master.find(
-            {"exchange": "NSE"},
+            {},
             {
                 "_id": 0,
                 "company_name": 1,
@@ -43,6 +107,9 @@ def get_closed_ipos():
                 "security_type": 1,
                 "issue_information.issue_end_date": 1,
                 "issue_information.issue_price": 1,
+                "issue_end_date": 1,
+                "nse_quote.metadata.listingDate": 1,
+                "price_range": 1
             }
         )
     )
@@ -50,24 +117,43 @@ def get_closed_ipos():
     def parse_date(s):
         if not s or s == "-":
             return None
-        try:
-            return datetime.strptime(s.strip(), "%d-%b-%Y")
-        except Exception:
-            return None
+        s = s.strip()
+        for fmt in ("%d-%b-%Y", "%d-%b-%y", "%Y-%m-%d", "%d-%m-%Y", "%B %d, %Y"):
+            try:
+                return datetime.strptime(s, fmt)
+            except Exception:
+                continue
+        return None
 
     today = datetime.today()
 
     closed = []
     for d in docs:
-        end_date = parse_date((d.get("issue_information") or {}).get("issue_end_date"))
+        info = d.get("issue_information") or {}
+        end_date_str = info.get("issue_end_date") or d.get("issue_end_date")
+        
+        # Look for listingDate from NSE quote metadata if still missing
+        if not end_date_str:
+            metadata = d.get("nse_quote", {}).get("metadata", {})
+            end_date_str = metadata.get("listingDate")
+
+        end_date = parse_date(end_date_str)
         if end_date and end_date < today:
-            closed.append(d)
+            price = info.get("issue_price") or d.get("price_range") or "-"
+            
+            parsed = {
+                "company_name": d.get("company_name", d.get("symbol")),
+                "symbol": d.get("symbol"),
+                "security_type": d.get("security_type", "Equity"),
+                "issue_end_date": end_date_str if end_date_str else "-",
+                "issue_price": price,
+                "status": "Closed",
+                "_parsed_date": end_date # For sorting only
+            }
+            closed.append(parsed)
 
     # sort latest closed first
-    closed.sort(
-        key=lambda x: parse_date((x.get("issue_information") or {}).get("issue_end_date")) or datetime.min,
-        reverse=True
-    )
+    closed.sort(key=lambda x: x.pop("_parsed_date"), reverse=True)
 
     return closed
 

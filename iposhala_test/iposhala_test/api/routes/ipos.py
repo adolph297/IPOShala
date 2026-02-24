@@ -29,30 +29,7 @@ def normalize_symbol(symbol: str) -> str:
     return (symbol or "").upper().strip()
 
 
-@router.get("/closed")
-def get_closed_ipos(limit: int = 50):
-    # Fetch recent items. We might want to sort by listing date or similar if available.
-    cursor = ipo_past_master.find({}, {"_id": 0}).limit(limit)
-    raw_list = list(cursor)
-    
-    parsed_list = []
-    for ipo in raw_list:
-        quote = ipo.get("nse_quote", {})
-        info = quote.get("info", {})
-        metadata = quote.get("metadata", {})
-        
-        # Map fields for frontend compatibility
-        parsed = {
-            "symbol": ipo.get("symbol"),
-            "company_name": ipo.get("company_name") or info.get("companyName") or ipo.get("symbol"),
-            "security_type": ipo.get("security_type") or metadata.get("series") or "Equity",
-            "issue_end_date": ipo.get("issue_end_date") or metadata.get("listingDate") or "-",
-            "issue_price": ipo.get("issue_price") or ipo.get("price_range") or "-",
-            "status": "Closed"
-        }
-        parsed_list.append(parsed)
-        
-    return parsed_list
+
 
 
 @router.get("/{symbol}")
