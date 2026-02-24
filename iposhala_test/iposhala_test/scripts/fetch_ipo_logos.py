@@ -150,6 +150,24 @@ def find_chittorgarh_logo(company_name, symbol=None):
     except: pass
     return None
 
+def find_clearbit_logo(website_url):
+    """Fallback to Clearbit Logo API."""
+    try:
+        domain = urlparse(website_url).netloc
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if not domain:
+            return None
+            
+        url = f"https://logo.clearbit.com/{domain}"
+        # We don't disable verify here because clearbit has good certs
+        res = requests.head(url, timeout=5)
+        if res.status_code == 200:
+            return url
+    except Exception as e:
+        pass
+    return None
+
 def find_logo(website_url, company_name=None, symbol=None):
     if not website_url: return None
     
@@ -223,6 +241,11 @@ def find_logo(website_url, company_name=None, symbol=None):
                     return ch_logo
                 else:
                     logging.info(f"  FAILURE: Chittorgarh fallback returned None for {company_name}")
+                    logging.info(f"  Attempting Clearbit fallback for {website_url}")
+                    cb_logo = find_clearbit_logo(website_url)
+                    if cb_logo:
+                        logging.info(f"  SUCCESS: Using Clearbit fallback: {cb_logo}")
+                        return cb_logo
             
             logging.info(f"  Selected local logo: {best_local['url']} (Score: {best_local['score']})")
             return best_local['url']
@@ -230,7 +253,13 @@ def find_logo(website_url, company_name=None, symbol=None):
         # Fallback to Chittorgarh if nothing found on site
         if company_name:
             logging.info(f"  No local candidates. Attempting Chittorgarh fallback for {company_name}")
-            return find_chittorgarh_logo(company_name, symbol)
+            ch_logo = find_chittorgarh_logo(company_name, symbol)
+            if ch_logo: return ch_logo
+            
+        # Fallback to Clearbit if Chittorgarh fails
+        logging.info(f"  Attempting Clearbit fallback for {website_url}")
+        cb_logo = find_clearbit_logo(website_url)
+        if cb_logo: return cb_logo
 
     except Exception as e:
         logging.error(f"Error scanning {website_url}: {e}")
@@ -245,7 +274,7 @@ def run_batch(limit=50, force=False, chittorgarh_only=False):
     domain_blacklist = ["wikipedia.org", "nseindia.com", "bseindia.com", "moneycontrol.com", "chittorgarh.com"]
     
     if not force:
-        query["logo_url"] = {"$exists": False}
+        query["$or"] = [{"logo_url": {"$exists": False}}, {"logo_url": None}, {"logo_url": ""}]
         
     companies = list(ipo_past_master.find(query).limit(limit))
     logging.info(f"Found {len(companies)} companies to scan for logos (Force: {force}).")
@@ -260,18 +289,18 @@ def run_batch(limit=50, force=False, chittorgarh_only=False):
             logo = find_chittorgarh_logo(name, symbol)
         else:
             if not website:
-                logging.info(f"Skipping {symbol} - no website and not in chittorgarh-only mode")
-                continue
-            
-            logging.info(f"Scanning {symbol} at {website}...")
-            if any(d in website.lower() for d in domain_blacklist):
-                # Try Chittorgarh even if website is blacklisted
+                logging.info(f"No website for {symbol}. Attempting Chittorgarh as a fallback.")
                 logo = find_chittorgarh_logo(name, symbol)
-                if logo:
-                    logging.info(f"  Found Chittorgarh logo for blacklisted site {symbol}: {logo}")
-                    ipo_past_master.update_one({"symbol": symbol}, {"$set": {"logo_url": logo}})
-                continue
-            logo = find_logo(website, name, symbol)
+            else:
+                logging.info(f"Scanning {symbol} at {website}...")
+                if any(d in website.lower() for d in domain_blacklist):
+                    # Try Chittorgarh even if website is blacklisted
+                    logo = find_chittorgarh_logo(name, symbol)
+                    if logo:
+                        logging.info(f"  Found Chittorgarh logo for blacklisted site {symbol}: {logo}")
+                        ipo_past_master.update_one({"symbol": symbol}, {"$set": {"logo_url": logo}})
+                    continue
+                logo = find_logo(website, name, symbol)
         
         if logo:
             logging.info(f"  FOUND: {logo}")
