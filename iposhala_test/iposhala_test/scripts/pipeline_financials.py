@@ -1,26 +1,24 @@
-
 import os
 import re
-import json
 import time
-import random
 import logging
-import sys
+import argparse
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
+import sys
+
+# Add project root to path
+sys.path.append(os.getcwd())
 from iposhala_test.scripts.mongo import ipo_past_master
 
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.FileHandler("improved_crawler.log"), logging.StreamHandler()]
+    handlers=[logging.FileHandler("pipeline_financials.log"), logging.StreamHandler()]
 )
 
 BLACKLIST_DOMAINS = ["wikipedia.org", "facebook.com", "twitter.com", "linkedin.com", "youtube.com", "google.com", "meritnation.com", "justdial.com", "indiamart.com", "glassdoor.com", "ambitionbox.com"]
@@ -34,10 +32,9 @@ def setup_driver():
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-    
     try:
         driver = webdriver.Chrome(options=chrome_options)
-        driver.set_page_load_timeout(45) # Increased timeout
+        driver.set_page_load_timeout(45)
         return driver
     except Exception as e:
         logging.error(f"Failed to setup driver: {e}")
@@ -74,20 +71,11 @@ def extract_year(text):
     match = re.search(r'(\d{4}[-–—]\d{2,4})|(\d{4})', text)
     return match.group(0) if match else None
 
-def get_companies_to_scan(category=None):
-    if category == "failure":
-        try:
-            with open('extraction_categories.json', 'r') as f:
-                cats = json.load(f)
-                symbols = [s.split('(')[-1].rstrip(')') for s in cats.get('crawler_failure', [])]
-                return list(ipo_past_master.find({"symbol": {"$in": symbols}}, {"symbol": 1, "website": 1, "company_name": 1}))
-        except:
-            pass
-    
-    return list(ipo_past_master.find({
-        "website": {"$exists": True, "$ne": None},
-        "nse_company.financial_results": {"$exists": False}
-    }, {"symbol": 1, "website": 1, "company_name": 1}))
+def get_companies_to_scan(limit_symbols=None):
+    query = {"website": {"$exists": True, "$ne": None}}
+    if limit_symbols:
+        query["symbol"] = {"$in": limit_symbols}
+    return list(ipo_past_master.find(query, {"symbol": 1, "website": 1, "company_name": 1}))
 
 class FinancialCrawler:
     def __init__(self, driver):
@@ -99,15 +87,12 @@ class FinancialCrawler:
     def scan_page(self, url, symbol, depth=0):
         if depth > 3 or url in self.visited_urls:
             return
-        
         if is_blacklisted(url, ""):
             return
-
         if depth > 0 and not is_same_domain(url, self.base_domain_url):
             return
             
         self.visited_urls.add(url)
-        
         try:
             self.driver.get(url)
             time.sleep(5) 
@@ -125,7 +110,6 @@ class FinancialCrawler:
                     href = link.get_attribute("href")
                     text = link.text.strip()
                     if not href: continue
-                    
                     full_url = clean_url(href, url)
                     if not full_url or is_blacklisted(full_url, text): continue
 
@@ -141,7 +125,7 @@ class FinancialCrawler:
                                 "year": year,
                                 "type": "Annual Report" if "annual" in text.lower() else "Financial Result",
                                 "period": "Quarterly" if any(q in text.lower() for q in ["q1","q2","q3","q4"]) else "Other",
-                                "source": "selenium_v2",
+                                "source": "pipeline_financials",
                                 "scanned_at": datetime.now().isoformat()
                             }
                             self.found_reports.append(report)
@@ -151,13 +135,11 @@ class FinancialCrawler:
                                     sub_pages.append(full_url)
                 except:
                     continue
-            
             for sub_url in list(set(sub_pages)):
                 if sub_url not in self.visited_urls:
                     self.scan_page(sub_url, symbol, depth + 1)
-                
         except Exception as e:
-            raise e 
+            pass 
 
     def run(self, symbol, website):
         self.found_reports = []
@@ -170,22 +152,55 @@ class FinancialCrawler:
             unique[r['url']] = r
         return list(unique.values())
 
+def process_and_save_reports(symbol, website, reports):
+    if not reports:
+        return False
+        
+    annual_reports = []
+    financial_results = []
+    
+    for item in reports:
+        label = item.get("desc") or item.get("type")
+        doc = {
+            "desc": label,
+            "url": item.get("url"),
+            "source": item.get("source", "pipeline_financials"),
+            "imported_at": datetime.now().isoformat()
+        }
+        if item.get("type") == "Annual Report":
+            doc["m_yr"] = item.get("year", "")
+            annual_reports.append(doc)
+        else:
+            doc["period"] = item.get("period", "")
+            if item.get("year"):
+                doc["year"] = item.get("year")
+            financial_results.append(doc)
+            
+    update_fields = {}
+    if annual_reports:
+        update_fields["nse_company.annual_reports"] = {
+            "__available__": True,
+            "data": annual_reports 
+        }
+    if financial_results:
+         update_fields["nse_company.financial_results"] = {
+            "__available__": True,
+            "data": financial_results
+        }
+    update_fields["nse_company.extracted_improved"] = reports
+    
+    if update_fields:
+        ipo_past_master.update_one({"symbol": symbol}, {"$set": update_fields})
+        return True
+    return False
+
 def main():
-    limit_symbols = sys.argv[1:] if len(sys.argv) > 1 else None
+    parser = argparse.ArgumentParser(description="Financials Data Pipeline")
+    parser.add_argument("--symbols", nargs="+", help="Specific symbols to scan")
+    args = parser.parse_args()
     
-    companies = get_companies_to_scan(category="failure")
-    if limit_symbols:
-        companies = [c for c in companies if c['symbol'] in limit_symbols]
-        logging.info(f"Targeted scan for {len(companies)} symbols.")
-    
-    results_file = 'batch_6_improved_financials.json'
-    all_data = {}
-    if os.path.exists(results_file):
-        try:
-            with open(results_file, 'r') as f:
-                all_data = json.load(f)
-        except:
-            logging.warning("Existing results file corruped, starting fresh.")
+    companies = get_companies_to_scan(args.symbols)
+    logging.info(f"Targeted scan for {len(companies)} symbols.")
 
     consecutive_errors = 0
     driver = setup_driver()
@@ -194,27 +209,16 @@ def main():
         for idx, comp in enumerate(companies):
             symbol = comp['symbol']
             website = comp.get('website')
-            
             if not website: continue
 
-            # Skip Logic: Only skip if we already have SUCCESSFUL audited_financials
-            if not limit_symbols and symbol in all_data and all_data[symbol].get('audited_financials'):
-                continue
-            
-            # PROTECT EXISTING SUCCESSES
-            existing_success = all_data.get(symbol, {}).get('audited_financials')
-
-            # Periodic Restart to avoid memory leaks / port exhaustion
             if idx > 0 and idx % 20 == 0:
                 logging.info("Periodic driver restart...")
                 if driver: driver.quit()
                 driver = setup_driver()
 
             if not driver:
-                logging.error(f"  Driver missing for {symbol}. Re-setting...")
                 driver = setup_driver()
-                if not driver:
-                    break
+                if not driver: break
 
             logging.info(f"[{idx+1}/{len(companies)}] Processing {symbol}...")
             crawler = FinancialCrawler(driver)
@@ -222,32 +226,17 @@ def main():
             try:
                 reports = crawler.run(symbol, website)
                 consecutive_errors = 0 
-                
                 if reports:
-                    logging.info(f"  SUCCESS: Found {len(reports)} reports for {symbol}")
-                    all_data[symbol] = {
-                        "website": website,
-                        "audited_financials": reports,
-                        "improved_scan": True,
-                        "last_scanned": datetime.now().isoformat()
-                    }
+                    logging.info(f"  SUCCESS: Found {len(reports)} reports for {symbol}. Saving to Mongo...")
+                    process_and_save_reports(symbol, website, reports)
                 else:
                     logging.info(f"  FAILED: No reports found for {symbol}")
-                    if not existing_success:
-                        all_data[symbol] = {"website": website, "found": False, "last_scanned": datetime.now().isoformat()}
-
-                with open(results_file, 'w') as f:
-                    json.dump(all_data, f, indent=2)
-                    
             except Exception as e:
                 logging.error(f"  Error for {symbol}: {e}")
                 consecutive_errors += 1
-                
-                # If driver crashed, try to recreate once
                 try: driver.quit()
                 except: pass
                 driver = setup_driver()
-
                 if consecutive_errors >= 5:
                     logging.critical("Too many consecutive errors. Exiting.")
                     break
@@ -255,8 +244,6 @@ def main():
         if driver:
             try: driver.quit()
             except: pass
-        with open(results_file, 'w') as f:
-            json.dump(all_data, f, indent=2)
 
 if __name__ == "__main__":
     main()
