@@ -1,35 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, Clock, BarChart3, Building2, Activity } from 'lucide-react';
+import { getIPOStats } from '../services/ipos';
 
 const KeySnapshots = () => {
+  const [stats, setStats] = useState({
+    upcoming: '-',
+    current: '-',
+    listed: '-',
+    sme: '-',
+    gmp: '-'
+  });
+
+  useEffect(() => {
+    getIPOStats()
+      .then((data) => setStats({
+        upcoming: data.upcoming ?? '-',
+        current: data.current ?? '-',
+        listed: data.listed ?? '-',
+        sme: data.sme ?? '-',
+        gmp: data.gmp ?? '-'
+      }))
+      .catch((err) => console.error("Failed to load IPO stats", err));
+  }, []);
+
   const snapshots = [
     {
       title: 'Upcoming IPOs',
-      value: '12',
+      value: stats.upcoming,
       icon: Clock,
       color: 'text-blue-600'
     },
     {
       title: 'Current IPOs',
-      value: '8',
+      value: stats.current,
       icon: TrendingUp,
       color: 'text-green-600'
     },
     {
       title: 'Recently Listed IPOs',
-      value: '15',
+      value: stats.listed,
       icon: BarChart3,
       color: 'text-orange-600'
     },
     {
       title: 'SME IPOs',
-      value: '24',
+      value: stats.sme,
       icon: Building2,
       color: 'text-purple-600'
     },
     {
       title: 'Active GMP Updates',
-      value: '32',
+      value: stats.gmp,
       icon: Activity,
       color: 'text-teal-600'
     }

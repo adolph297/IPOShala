@@ -3,13 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import HTTPException
 from .routes.ipos import router as ipos_router
 from .routes.company import router as company_router
+from .routes.gmp import router as gmp_router
 import requests
 from datetime import datetime
 from iposhala_test.api.routes.docs import router as docs_router
 
 
 # Import Mongo collection
-from iposhala_test.scripts.mongo import ipo_past_master
+from iposhala_test.scripts.mongo import ipo_past_master, ipo_live_upcoming, ipo_gmp
 
 app = FastAPI(title="IPOShala Backend API")
 
@@ -29,7 +30,8 @@ app.add_middleware(
 )
 
 @app.get("/api/ipos/closed")
-def get_closed_ipos():
+def get_closed_ipos(type: str = None):
+    # type can be 'sme', 'main', or None
     docs = list(
         ipo_past_master.find(
             {},
@@ -37,6 +39,7 @@ def get_closed_ipos():
                 "_id": 0,
                 "company_name": 1,
                 "symbol": 1,
+                "ipo_id": 1,
                 "security_type": 1,
                 "issue_information.issue_end_date": 1,
                 "issue_information.issue_price": 1,
@@ -51,11 +54,17 @@ def get_closed_ipos():
         if not s or s == "-":
             return None
         s = s.strip()
-        for fmt in ("%d-%b-%Y", "%d-%b-%y", "%Y-%m-%d", "%d-%m-%Y", "%B %d, %Y"):
+        for fmt in ("%d-%b-%Y", "%d-%b-%y", "%Y-%m-%d", "%d-%m-%Y", "%B %d, %Y", "%Y-%m-%dT%H:%M:%S"):
             try:
                 return datetime.strptime(s, fmt)
             except Exception:
                 continue
+        # Check for ISO format with fractional seconds
+        if "T" in s:
+            try:
+                return datetime.fromisoformat(s)
+            except Exception:
+                pass
         return None
 
     today = datetime.today()
@@ -72,12 +81,21 @@ def get_closed_ipos():
 
         end_date = parse_date(end_date_str)
         if end_date and end_date < today:
+            sec_type = d.get("security_type", "Equity")
+            
+            # Apply type filter
+            if type == 'sme' and sec_type != 'SME':
+                continue
+            if type == 'main' and sec_type == 'SME':
+                continue
+                
             price = info.get("issue_price") or d.get("price_range") or "-"
             
             parsed = {
+                "ipo_id": d.get("ipo_id", d.get("symbol")),
                 "company_name": d.get("company_name", d.get("symbol")),
                 "symbol": d.get("symbol"),
-                "security_type": d.get("security_type", "Equity"),
+                "security_type": sec_type,
                 "issue_end_date": end_date_str if end_date_str else "-",
                 "issue_price": price,
                 "status": "Closed",
@@ -90,85 +108,43 @@ def get_closed_ipos():
 
     return closed
 
+@app.get("/api/ipos/live")
+def get_live_ipos():
+    docs = list(ipo_live_upcoming.find({"status": "LIVE"}, {"_id": 0}))
+    return docs
+
+@app.get("/api/ipos/upcoming")
+def get_upcoming_ipos():
+    docs = list(ipo_live_upcoming.find({"status": "UPCOMING"}, {"_id": 0}))
+    return docs
+
+
+@app.get("/api/ipos/stats")
+def get_ipo_stats():
+    upcoming = ipo_live_upcoming.count_documents({"status": "UPCOMING"})
+    current = ipo_live_upcoming.count_documents({"status": "LIVE"})
+    listed = ipo_past_master.count_documents({})
+    
+    sme_live = ipo_live_upcoming.count_documents({"security_type": "SME"})
+    sme_past = ipo_past_master.count_documents({"security_type": "SME"})
+    sme_total = sme_live + sme_past
+    
+    gmp_count = ipo_gmp.count_documents({})
+    
+    return {
+        "upcoming": upcoming,
+        "current": current,
+        "listed": listed,
+        "sme": sme_total,
+        "gmp": gmp_count
+    }
 
 app.include_router(ipos_router)
 app.include_router(company_router)
+app.include_router(gmp_router)
 app.include_router(docs_router)
 
-@app.get("/api/ipos/closed")
-def get_closed_ipos():
-    docs = list(
-        ipo_past_master.find(
-            {},
-            {
-                "_id": 0,
-                "company_name": 1,
-                "symbol": 1,
-                "security_type": 1,
-                "issue_information.issue_end_date": 1,
-                "issue_information.issue_price": 1,
-                "issue_end_date": 1,
-                "nse_quote.metadata.listingDate": 1,
-                "price_range": 1
-            }
-        )
-    )
 
-    def parse_date(s):
-        if not s or s == "-":
-            return None
-        s = s.strip()
-        for fmt in ("%d-%b-%Y", "%d-%b-%y", "%Y-%m-%d", "%d-%m-%Y", "%B %d, %Y"):
-            try:
-                return datetime.strptime(s, fmt)
-            except Exception:
-                continue
-        return None
-
-    today = datetime.today()
-
-    closed = []
-    for d in docs:
-        info = d.get("issue_information") or {}
-        end_date_str = info.get("issue_end_date") or d.get("issue_end_date")
-        
-        # Look for listingDate from NSE quote metadata if still missing
-        if not end_date_str:
-            metadata = d.get("nse_quote", {}).get("metadata", {})
-            end_date_str = metadata.get("listingDate")
-
-        end_date = parse_date(end_date_str)
-        if end_date and end_date < today:
-            price = info.get("issue_price") or d.get("price_range") or "-"
-            
-            parsed = {
-                "company_name": d.get("company_name", d.get("symbol")),
-                "symbol": d.get("symbol"),
-                "security_type": d.get("security_type", "Equity"),
-                "issue_end_date": end_date_str if end_date_str else "-",
-                "issue_price": price,
-                "status": "Closed",
-                "_parsed_date": end_date # For sorting only
-            }
-            closed.append(parsed)
-
-    # sort latest closed first
-    closed.sort(key=lambda x: x.pop("_parsed_date"), reverse=True)
-
-    return closed
-
-
-@app.get("/api/ipos/{symbol}")
-def get_ipo_by_symbol(symbol: str):
-    ipo = ipo_past_master.find_one(
-        {"symbol": symbol},
-        {"_id": 0}
-    )
-
-    if not ipo:
-        raise HTTPException(status_code=404, detail="IPO not found")
-
-    return ipo
 
 @app.get("/api/nse/quote/{symbol}")
 def get_nse_quote(symbol: str):

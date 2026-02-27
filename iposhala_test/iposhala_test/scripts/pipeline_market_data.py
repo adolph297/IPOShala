@@ -21,43 +21,107 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Referer": "https://www.nseindia.com/"}
 
 def fetch_live_ipos():
-    url = "https://www.nseindia.com/api/ipo-current-issue"
+    urls = [
+        "https://www.nseindia.com/api/ipo-current-issue"
+    ]
     session = requests.Session()
     session.get("https://www.nseindia.com", headers=HEADERS)
-    response = session.get(url, headers=HEADERS)
-    response.raise_for_status()
-    items = response.json()
     
-    logging.info(f"[LIVE IPOS] Total records received: {len(items)}")
     count, today = 0, date.today()
-    
-    for item in items:
+    for url in urls:
         try:
-            start_dt = datetime.strptime(item["issueStartDate"], "%d-%b-%Y")
-            end_dt = datetime.strptime(item["issueEndDate"], "%d-%b-%Y")
-        except: continue
+            response = session.get(url, headers=HEADERS)
+            response.raise_for_status()
+            items = response.json()
+            logging.info(f"[LIVE IPOS] Total records received from {url.split('/')[-1]}: {len(items)}")
+            
+            for item in items:
+                try:
+                    start_dt = datetime.strptime(item["issueStartDate"], "%d-%b-%Y")
+                    end_dt = datetime.strptime(item["issueEndDate"], "%d-%b-%Y")
+                except: continue
+        
+                if today < start_dt.date(): status = "UPCOMING"
+                elif start_dt.date() <= today <= end_dt.date(): status = "LIVE"
+                elif today > end_dt.date(): status = "CLOSED"
+                else: continue
 
-        if today < start_dt.date(): status = "UPCOMING"
-        elif start_dt.date() <= today <= end_dt.date(): status = "LIVE"
-        else: continue
+                symbol_str = item.get("symbol", "")
+                if not symbol_str: continue
+                ipo_id = f"{symbol_str.lower().strip()}-{end_dt.year}"
+                
+                ipo_live_upcoming.update_one(
+                    {"ipo_id": ipo_id},
+                    {"$set": {
+                        "symbol": symbol_str,
+                        "company_name": item.get("companyName"),
+                        "security_type": item.get("marketType"),
+                        "issue_start_date": start_dt,
+                        "issue_end_date": end_dt,
+                        "price_range": item.get("priceBand"),
+                        "status": status,
+                        "issue_size": item.get("issueSize"),
+                        "source": "pipeline_market_data",
+                        "last_updated": datetime.now(timezone.utc)
+                    }},
+                    upsert=True
+                )
+                count += 1
+        except Exception as e:
+            logging.error(f"[LIVE IPOS] Failed fetching {url}: {e}")
+            
+    logging.info(f"[LIVE IPOS] Inserted/Updated {count} records")
+    
+    # Sweep expired IPOs into past master after fetching the latest
+    sweep_expired_live_ipos()
 
-        ipo_live_upcoming.update_one(
-            {"symbol": item.get("symbol")},
-            {"$set": {
-                "company_name": item.get("companyName"),
-                "security_type": item.get("marketType"),
-                "issue_start_date": start_dt,
-                "issue_end_date": end_dt,
-                "price_range": item.get("priceBand"),
-                "status": status,
-                "issue_size": item.get("issueSize"),
-                "source": "pipeline_market_data",
-                "last_updated": datetime.now(timezone.utc)
-            }},
+def sweep_expired_live_ipos():
+    """Finds LIVE/UPCOMING IPOs whose end date has passed, and moves them to PAST MASTER."""
+    today = datetime.now(timezone.utc)
+    # Give it a 1-day grace period to ensure timezone safety
+    cutoff = today - timedelta(days=1)
+    
+    expired_ipos = list(ipo_live_upcoming.find({"issue_end_date": {"$lt": cutoff}}))
+    if not expired_ipos:
+        return
+        
+    logging.info(f"[LIVE IPOS] Found {len(expired_ipos)} expired IPOs to transition to CLOSED.")
+    migrated = 0
+    for doc in expired_ipos:
+        symbol = doc.get("symbol")
+        if not symbol: continue
+        
+        # Structure the payload exactly how historical IPOs are structured
+        historical_payload = {
+            "ipo_id": doc.get("ipo_id"),
+            "symbol": symbol,
+            "company_name": doc.get("company_name"),
+            "security_type": doc.get("security_type", "Equity"),
+            "issue_end_date": doc["issue_end_date"].isoformat() if isinstance(doc.get("issue_end_date"), datetime) else doc.get("issue_end_date"),
+            "issue_information": {
+                "issue_price": doc.get("price_range", "-"),
+                "issue_size": doc.get("issue_size", "-"),
+                "issue_start_date": doc["issue_start_date"].isoformat() if isinstance(doc.get("issue_start_date"), datetime) else doc.get("issue_start_date"),
+                "issue_end_date": doc["issue_end_date"].isoformat() if isinstance(doc.get("issue_end_date"), datetime) else doc.get("issue_end_date")
+            },
+            "status": "CLOSED",
+            "source": "live_migration",
+            "migrated_at": today
+        }
+        
+        # Upsert into past master so it appears in the Closed IPOs list
+        ipo_past_master.update_one(
+            {"ipo_id": doc.get("ipo_id")} if doc.get("ipo_id") else {"symbol": symbol},
+            {"$set": historical_payload},
             upsert=True
         )
-        count += 1
-    logging.info(f"[LIVE IPOS] Inserted/Updated {count} records")
+        
+        # Remove from live holding tank
+        ipo_live_upcoming.delete_one({"_id": doc["_id"]})
+        migrated += 1
+        
+    logging.info(f"[LIVE IPOS] Successfully migrated {migrated} closed IPOs to historical pool.")
+
 
 def wrap_section(data: Dict[str, Any], symbol: str) -> Dict[str, Any]:
     if not data: return {"available": False, "payload": [], "source_url": None}

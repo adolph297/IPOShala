@@ -1,15 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import PageHeader from '@/components/common/PageHeader';
 import TableContainer from '@/components/common/TableContainer';
+import { getGMPData } from '../services/ipos';
+import { Link } from 'react-router-dom';
 
 const GMP = () => {
-  const gmpData = [
-    { name: 'Tech Solutions Ltd', price: '₹475', gmp: '₹85', estListing: '₹560', gain: '17.89%', type: 'Mainboard' },
-    { name: 'Creative Tech SME', price: '₹85', gmp: '₹40', estListing: '₹125', gain: '47.05%', type: 'SME' },
-    { name: 'FinTech Innovations', price: '₹620', gmp: '₹125', estListing: '₹745', gain: '20.16%', type: 'Mainboard' },
-    { name: 'Green Energy Corp', price: '₹340', gmp: '₹45', estListing: '₹385', gain: '13.23%', type: 'Mainboard' },
-  ];
+  const [gmpData, setGmpData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getGMPData()
+      .then(data => {
+        setGmpData(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to load GMP data", err);
+        setLoading(false);
+      });
+  }, []);
 
   return (
     <>
@@ -31,16 +41,38 @@ const GMP = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {gmpData.map((data, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#1a2332]">{data.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{data.type}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{data.price}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">+{data.gmp}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{data.estListing}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">+{data.gain}</td>
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                    Loading Live GMP Data...
+                  </td>
                 </tr>
-              ))}
+              ) : gmpData.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                    No GMP tracking data available. Ensure scraping pipeline is running.
+                  </td>
+                </tr>
+              ) : (
+                gmpData.map((data) => (
+                  <tr key={data.ipo_id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-[#1a2332]">
+                      <Link to={`/ipo/${data.ipo_id}`} className="text-blue-600 hover:underline">
+                        {data.companyName}
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Mainboard/SME</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">₹{data.issuePrice}</td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${data.gmp > 0 ? 'text-green-600' : data.gmp < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                      {data.gmp > 0 ? '+' : ''}{data.gmp || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">₹{data.estimatedListingPrice || 0}</td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${data.expectedGainPercent > 0 ? 'text-green-600' : data.expectedGainPercent < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                      {data.expectedGainPercent > 0 ? '+' : ''}{data.expectedGainPercent || 0}%
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </TableContainer>

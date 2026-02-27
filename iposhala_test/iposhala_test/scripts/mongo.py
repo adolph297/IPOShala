@@ -17,6 +17,7 @@ ipo_past_master = db["ipo_past_master"]
 ipo_past_issue_info = db["ipo_past_issue_info"]
 ipo_live_upcoming = db["ipo_live_upcoming"]
 ipo_master = db["ipo_master"]
+ipo_gmp = db["ipo_gmp"]
 
 
 print("MONGO_URI =", MONGO_URI)
