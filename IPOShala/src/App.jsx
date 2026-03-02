@@ -23,7 +23,9 @@ import ScrollToTop from '@/components/ScrollToTop';
 import { Toaster } from '@/components/ui/toaster';
 import IPODetails from '@/pages/IPODetails';
 import ChartDemo from '@/pages/ChartDemo';
-
+import SearchResults from '@/pages/SearchResults';
+import Analytics from '@/pages/Analytics';
+import Calendar from '@/pages/Calendar';
 
 function App() {
   return (
@@ -56,6 +58,9 @@ function App() {
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/chart-demo" element={<ChartDemo />} />
+            <Route path="/search" element={<SearchResults />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/analytics" element={<Analytics />} />
           </Routes>
         </main>
         <Footer />

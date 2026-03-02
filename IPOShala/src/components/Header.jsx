@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import GlobalSearch from './GlobalSearch';
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-
   const menuItems = [
     { name: 'Home', path: '/' },
     { name: 'Mainboard IPOs', path: '/mainboard-ipos' },
@@ -14,7 +14,9 @@ const Header = () => {
     { name: 'Upcoming IPOs', path: '/upcoming-ipos' },
     { name: 'Current IPOs', path: '/current-ipos' },
     { name: 'Closed IPOs', path: '/closed-ipos' },
+    { name: 'Calendar', path: '/calendar' },
     { name: 'GMP', path: '/gmp' },
+    { name: 'Analytics', path: '/analytics' },
     { name: 'About', path: '/about' }
   ];
 
@@ -24,7 +26,7 @@ const Header = () => {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link to="/">
-              <img 
+              <img
                 src="https://horizons-cdn.hostinger.com/250e55c4-98e6-4e8f-8c23-b04373e3acd1/66cfe7958c5021d72b6a93182bcc1f46.png"
                 alt="IPOshala Logo"
                 className="h-10 w-auto"
@@ -32,22 +34,27 @@ const Header = () => {
             </Link>
           </div>
 
+          <div className="hidden lg:flex flex-1 justify-center px-8">
+            <GlobalSearch />
+          </div>
+
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1">
+          <nav className="hidden xl:flex items-center space-x-1">
             {menuItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.path}
                 className={cn(
                   "px-3 py-2 text-sm font-medium rounded transition-colors duration-200",
-                  location.pathname === item.path 
-                    ? "text-white bg-[#2a3442]" 
+                  location.pathname === item.path
+                    ? "text-white bg-[#2a3442]"
                     : "text-gray-200 hover:text-white hover:bg-[#2a3442]"
                 )}
               >
                 {item.name}
               </Link>
             ))}
+
           </nav>
 
           {/* Mobile menu button */}
@@ -62,21 +69,25 @@ const Header = () => {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <nav className="lg:hidden pb-4">
+            <div className="px-4 pb-4">
+              <GlobalSearch />
+            </div>
             {menuItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.path}
                 className={cn(
-                    "block px-3 py-2 text-sm font-medium rounded transition-colors duration-200",
-                    location.pathname === item.path 
-                      ? "text-white bg-[#2a3442]" 
-                      : "text-gray-200 hover:text-white hover:bg-[#2a3442]"
-                  )}
+                  "block px-3 py-2 text-sm font-medium rounded transition-colors duration-200",
+                  location.pathname === item.path
+                    ? "text-white bg-[#2a3442]"
+                    : "text-gray-200 hover:text-white hover:bg-[#2a3442]"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {item.name}
               </Link>
             ))}
+
           </nav>
         )}
       </div>

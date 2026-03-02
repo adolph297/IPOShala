@@ -2,12 +2,22 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getIPODetails } from "../services/ipos";
 import CompanyTabs from "@/components/company/CompanyTabs";
-import PageHeader from "@/components/common/PageHeader";
+import { Helmet } from "react-helmet";
 import { Link } from "react-router-dom";
 import NseOverviewCards from "@/components/company/NseOverviewCards";
+import IssueDetailsTable from "@/components/company/IssueDetailsTable";
+import FinancialSummaryTable from "@/components/company/FinancialSummaryTable";
+import GMPTrendChart from "@/components/company/GMPTrendChart";
+import SubscriptionProgress from "@/components/company/SubscriptionProgress";
+import RiskMeter from "@/components/company/RiskMeter";
+
+import { BookmarkPlus, BookmarkCheck, ShieldCheck, Clock } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const IPODetails = () => {
   const { symbol } = useParams();
+
+  const { toast } = useToast();
   const [ipo, setIpo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +59,8 @@ const IPODetails = () => {
       });
   }, [symbol]);
 
+
+
   if (loading) return <div className="p-6">Loading IPO details...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
@@ -66,17 +78,46 @@ const IPODetails = () => {
     r?.attchmntFile || r?.url || r?.link || r?.attachment || r?.pdf || null;
 
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FinancialProduct",
+    "name": `${ipo?.company_name || symbol} IPO`,
+    "description": `Comprehensive details, live GMP, subscription status, and financial analysis for the ${ipo?.company_name || symbol} IPO.`,
+    "brand": {
+      "@type": "Brand",
+      "name": ipo?.company_name || symbol
+    }
+  };
+
   return (
     <>
+      <Helmet>
+        <title>{ipo?.company_name || symbol} IPO Date, Price, GMP & Details | IPOshala</title>
+        <meta name="description" content={`Get the latest details, GMP, subscription status, and performance analytics for the ${ipo?.company_name || symbol} IPO. Read our expert analysis.`} />
+        <meta property="og:title" content={`${ipo?.company_name || symbol} IPO Details - IPOshala`} />
+        <meta property="og:description" content={`Live tracking for ${ipo?.company_name || symbol} IPO including Grey Market Premium, subscription numbers, and allotment status.`} />
+        <script type="application/ld+json">
+          {JSON.stringify(jsonLd)}
+        </script>
+      </Helmet>
       <div className="bg-gray-50 border-b border-gray-200 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex justify-between items-center relative">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-[#1a2332]">
-              {ipo.company_name}
-            </h1>
+            <div className="flex items-center gap-4 flex-wrap">
+              <h1 className="text-3xl font-bold text-[#1a2332]">
+                {ipo.company_name}
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <ShieldCheck size={14} className="text-blue-600" /> NSE Verified
+              </span>
 
-            <div className="mt-2 text-base text-gray-600">
-              Symbol: {ipo.symbol || symbol}
+            </div>
+
+            <div className="mt-3 flex items-center gap-4 text-sm text-gray-600">
+              <span className="font-medium">Symbol: {ipo.symbol || symbol}</span>
+              <span className="flex items-center gap-1 text-gray-400">
+                <Clock size={14} /> Last Updated: Live
+              </span>
             </div>
           </div>
 
@@ -112,6 +153,11 @@ const IPODetails = () => {
             ← Back to Closed IPOs
           </Link>
         </div>
+
+        {/* ================= AI RISK SCORE METER ================= */}
+        {ipo?.confidence_score !== undefined && (
+          <RiskMeter score={ipo.confidence_score} level={ipo.risk_level} />
+        )}
 
         {ipo?.description && (
           <div className="mb-10 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -429,34 +475,16 @@ const IPODetails = () => {
             </div>
           )}
 
-        {/* ================= IPO DETAILS CARD ================= */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold bg-[#1a2332] text-white py-3 px-6 rounded-t-xl -mx-6 -mt-6 mb-6">
-            IPO Details
-          </h2>
+        {/* ================= SUBSCRIPTION & ISSUE DETAILS ================= */}
+        <SubscriptionProgress subscription={ipo.subscription} />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <p><strong>Symbol:</strong> {ipo.symbol}</p>
-            <p><strong>Security Type:</strong> {ipo.security_type}</p>
+        <IssueDetailsTable ipo={ipo} />
+        <FinancialSummaryTable ipo={ipo} />
 
-            <p>
-              <strong>Issue Dates:</strong>{" "}
-              {ipo.issue_start_date || "-"} → {ipo.issue_end_date || "-"}
-            </p>
-
-            <p>
-              <strong>Listing Date:</strong>{" "}
-              {ipo.listing_date || "-"}
-            </p>
-
-            <p>
-              <strong>Price:</strong>{" "}
-              {ipo.issue_price && ipo.issue_price !== "-"
-                ? ipo.issue_price
-                : ipo.price_range || "-"}
-            </p>
-          </div>
-        </div>
+        {/* ================= GMP TREND CHART (Future-Proofed for Timeline format) ================= */}
+        {ipo.gmp && (
+          <GMPTrendChart gmpHistory={ipo.gmp_history || []} currentGmp={ipo.gmp || 0} />
+        )}
 
         <NseOverviewCards symbol={ipo.symbol || symbol} ipo={ipo} />
 

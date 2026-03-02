@@ -13,12 +13,92 @@ from iposhala_test.scripts.mongo import ipo_past_master, ipo_live_upcoming
 from iposhala_test.scrapers.nse_company_dynamic import (
     fetch_announcements, fetch_corporate_actions, fetch_annual_reports,
     fetch_brsr_reports, fetch_board_meetings, fetch_event_calendar,
-    selenium_fetch_financial_results, selenium_fetch_shareholding_pattern
+    selenium_fetch_financial_results, selenium_fetch_shareholding_pattern,
+    fetch_ipo_detail
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Referer": "https://www.nseindia.com/"}
+
+def parse_subscription(detail_res):
+    if not detail_res or not detail_res.get("__available__"): return None
+    data = detail_res.get("data", {})
+    
+    # Check both activeCat (Live) and bidDetails (Past/Closed)
+    cat_list = data.get("activeCat", {}).get("dataList", [])
+    if not cat_list:
+        cat_list = data.get("bidDetails", [])
+        
+    subs = {"qib": None, "nii": None, "retail": None, "total": None}
+    
+    for row in cat_list:
+        # noOfTotalMeant (activeCat) or noOfTime (bidDetails)
+        val = row.get("noOfTotalMeant") or row.get("noOfTime")
+        if not val: continue
+        try:
+            val_float = float(val)
+        except ValueError:
+            continue
+            
+        cat = str(row.get("category", "")).lower()
+        if "qualified institutional" in cat:
+            subs["qib"] = round(val_float, 2)
+        elif "non institutional" in cat and row.get("srNo") == "2": # main NII
+            subs["nii"] = round(val_float, 2)
+        elif "retail individual" in cat:
+            subs["retail"] = round(val_float, 2)
+        elif "total" in cat:
+            subs["total"] = round(val_float, 2)
+            
+    return subs if any(v is not None for v in subs.values()) else None
+
+import re
+def extract_documents(detail_res):
+    if not detail_res or not detail_res.get("__available__"): return None, None
+    data = detail_res.get("data", {})
+    add_details = data.get("additionalDetails", [])
+    bid_details = data.get("biddingDetail", [])
+    issue_info_list = data.get("issueInfo", {}).get("dataList", [])
+    
+    all_details = add_details + bid_details + issue_info_list
+    
+    docs = {}
+    info_updates = {}
+    
+    mapping = {
+        "Red Herring Prospectus": ("docs", "rhp"),
+        "Ratios / Basis of Issue Price": ("docs", "ratios"),
+        "Bidding Centers": ("docs", "bidding_centers"),
+        "Sample Application Forms": ("docs", "forms"),
+        "Security Parameters (Pre Anchor)": ("docs", "security_pre"),
+        "Security Parameters (Post Anchor)": ("docs", "security_post"),
+        "Processing of ASBA Applications": ("info", "asba_circular_pdf"),
+        "Video link  for UPI based ASBA process": ("info", "upi_asba_video"),
+        "Video link  for BHIM UPI Registration": ("info", "bhim_upi_registration_video")
+    }
+
+    for item in all_details:
+        title = str(item.get("title", "")).strip()
+        val = str(item.get("value", "")).strip()
+        if not title or not val or val == "-": continue
+        
+        # Extract href if it's an anchor tag
+        url = val
+        match = re.search(r"href=([^\s>]+)", val)
+        if match:
+            url = match.group(1).strip("'\"")
+            
+        # Match with mapping
+        for key, (dest_type, dest_key) in mapping.items():
+            if key.lower() in title.lower():
+                if dest_type == "docs":
+                    docs[dest_key] = url
+                elif dest_type == "info":
+                    info_updates[dest_key] = url
+                break
+                
+    return docs if docs else None, info_updates if info_updates else None
 
 def fetch_live_ipos():
     urls = [
@@ -50,20 +130,45 @@ def fetch_live_ipos():
                 if not symbol_str: continue
                 ipo_id = f"{symbol_str.lower().strip()}-{end_dt.year}"
                 
+                # Try fetching deeper details for subscription and documents parsing
+                subs_data = None
+                docs_data = None
+                info_updates = None
+                
+                if status in ["LIVE", "UPCOMING", "CLOSED"]:
+                    try:
+                        detail_res = fetch_ipo_detail(symbol_str)
+                        if detail_res and detail_res.get("__available__"):
+                            subs_data = parse_subscription(detail_res)
+                            docs_data, info_updates = extract_documents(detail_res)
+                    except Exception as loop_e:
+                        logging.warning(f"Failed to fetch detail for {symbol_str}: {loop_e}")
+
+                payload = {
+                    "symbol": symbol_str,
+                    "company_name": item.get("companyName"),
+                    "security_type": item.get("marketType"),
+                    "issue_start_date": start_dt,
+                    "issue_end_date": end_dt,
+                    "price_range": item.get("priceBand"),
+                    "status": status,
+                    "issue_size": item.get("issueSize"),
+                    "source": "pipeline_market_data",
+                    "last_updated": datetime.now(timezone.utc)
+                }
+                
+                if subs_data:
+                    payload["subscription"] = subs_data
+                    
+                if docs_data:
+                    payload["documents"] = docs_data
+                    
+                if info_updates:
+                    payload["issue_information"] = info_updates
+                
                 ipo_live_upcoming.update_one(
                     {"ipo_id": ipo_id},
-                    {"$set": {
-                        "symbol": symbol_str,
-                        "company_name": item.get("companyName"),
-                        "security_type": item.get("marketType"),
-                        "issue_start_date": start_dt,
-                        "issue_end_date": end_dt,
-                        "price_range": item.get("priceBand"),
-                        "status": status,
-                        "issue_size": item.get("issueSize"),
-                        "source": "pipeline_market_data",
-                        "last_updated": datetime.now(timezone.utc)
-                    }},
+                    {"$set": payload},
                     upsert=True
                 )
                 count += 1
@@ -78,10 +183,13 @@ def fetch_live_ipos():
 def sweep_expired_live_ipos():
     """Finds LIVE/UPCOMING IPOs whose end date has passed, and moves them to PAST MASTER."""
     today = datetime.now(timezone.utc)
+    today_naive = datetime.now()
     # Give it a 1-day grace period to ensure timezone safety
-    cutoff = today - timedelta(days=1)
+    cutoff = today_naive - timedelta(days=1)
     
-    expired_ipos = list(ipo_live_upcoming.find({"issue_end_date": {"$lt": cutoff}}))
+    all_live = list(ipo_live_upcoming.find())
+    expired_ipos = [doc for doc in all_live if isinstance(doc.get("issue_end_date"), datetime) and doc.get("issue_end_date") < cutoff]
+
     if not expired_ipos:
         return
         
@@ -90,6 +198,8 @@ def sweep_expired_live_ipos():
     for doc in expired_ipos:
         symbol = doc.get("symbol")
         if not symbol: continue
+        
+        doc_issue_info = doc.get("issue_information", {})
         
         # Structure the payload exactly how historical IPOs are structured
         historical_payload = {
@@ -102,12 +212,20 @@ def sweep_expired_live_ipos():
                 "issue_price": doc.get("price_range", "-"),
                 "issue_size": doc.get("issue_size", "-"),
                 "issue_start_date": doc["issue_start_date"].isoformat() if isinstance(doc.get("issue_start_date"), datetime) else doc.get("issue_start_date"),
-                "issue_end_date": doc["issue_end_date"].isoformat() if isinstance(doc.get("issue_end_date"), datetime) else doc.get("issue_end_date")
+                "issue_end_date": doc["issue_end_date"].isoformat() if isinstance(doc.get("issue_end_date"), datetime) else doc.get("issue_end_date"),
+                **doc_issue_info # Keep all the video links / circulars
             },
             "status": "CLOSED",
             "source": "live_migration",
             "migrated_at": today
         }
+        
+        # Bring over subscription data if it exists
+        if doc.get("subscription"):
+            historical_payload["subscription"] = doc.get("subscription")
+            
+        if doc.get("documents"):
+            historical_payload["documents"] = doc.get("documents")
         
         # Upsert into past master so it appears in the Closed IPOs list
         ipo_past_master.update_one(

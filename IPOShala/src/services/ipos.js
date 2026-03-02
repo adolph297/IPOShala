@@ -24,3 +24,7 @@ export const getIPOStats = async () => {
 export const getGMPData = async () => {
   return await apiGet(`/api/gmp/`);
 };
+
+export const searchIPOs = async (query) => {
+  return await apiGet(`/api/search?q=${encodeURIComponent(query)}`);
+};

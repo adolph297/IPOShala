@@ -181,3 +181,9 @@ def fetch_event_calendar(symbol: str):
     s = cookie_pool.get()
     url = f"https://www.nseindia.com/api/event-calendar?symbol={symbol}"
     return _safe_get_json(s, url)
+
+def fetch_ipo_detail(symbol: str):
+    """Fetches subscription and issue details for an ongoing/closed IPO from NSE."""
+    s = cookie_pool.get()
+    url = f"https://www.nseindia.com/api/ipo-detail?symbol={symbol}"
+    return _safe_get_json(s, url)

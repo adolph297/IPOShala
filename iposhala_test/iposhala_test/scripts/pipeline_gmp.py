@@ -101,11 +101,26 @@ def fetch_and_store_gmp():
                         "lastUpdated": datetime.now(timezone.utc)
                     })
 
-        # Upsert matched data into GMP collection
+        # Upsert matched data into GMP collection and maintain historical timeline
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        
         for data in matched_data:
+            # We want to push the daily GMP snapshot to gmp_history
+            history_entry = {
+                "date": today_str,
+                "gmp": data["gmp"],
+                "issuePrice": data["issuePrice"],
+                "estimatedListingPrice": data["estimatedListingPrice"]
+            }
+            
             ipo_gmp.update_one(
                 {"ipo_id": data["ipo_id"]},
-                {"$set": data},
+                {
+                    "$set": data,
+                    # Push to history array. Using $addToSet or unique matching could prevent intra-day dupes, 
+                    # but since this runs via cron, we'll let it push, or we can filter it on frontend.
+                    "$push": { "gmp_history": history_entry }
+                },
                 upsert=True
             )
 

@@ -1,13 +1,58 @@
-import React from 'react';
-import { Helmet } from 'react-helmet';
-import PageHeader from '@/components/common/PageHeader';
-import TableContainer from '@/components/common/TableContainer';
+import React, { useEffect, useState } from "react";
+import { Helmet } from "react-helmet";
+import PageHeader from "@/components/common/PageHeader";
+import TableContainer from "@/components/common/TableContainer";
+import { Link } from "react-router-dom";
+import { getClosedIPOs } from "../services/ipos";
+import AdvancedTable from "@/components/common/AdvancedTable";
 
 const SMEIPOs = () => {
-  const smeData = [
-    { name: 'Creative Tech SME', openDate: '18-Jan-2026', closeDate: '20-Jan-2026', price: '₹85', lot: '1600', size: '12 Cr', status: 'Upcoming' },
-    { name: 'Agro Products Ltd', openDate: '12-Jan-2026', closeDate: '14-Jan-2026', price: '₹42', lot: '3000', size: '8.5 Cr', status: 'Closed' },
-    { name: 'Solar Components', openDate: '16-Jan-2026', closeDate: '19-Jan-2026', price: '₹110', lot: '1200', size: '25 Cr', status: 'Open' },
+  const [smeData, setSmeData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+
+    getClosedIPOs('sme')
+      .then((data) => {
+        setSmeData(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch SME IPOs", err);
+        setLoading(false);
+      });
+  }, []);
+
+  const columns = [
+    {
+      header: 'Company',
+      accessor: 'company_name',
+      render: (row) => (
+        <Link
+          to={`/ipo/${row.symbol}`}
+          className="text-blue-600 hover:underline font-medium"
+        >
+          {row.company_name}
+        </Link>
+      )
+    },
+    { header: 'Type', accessor: 'security_type' },
+    { header: 'Close Date', accessor: 'issue_end_date' },
+    {
+      header: 'Final Price',
+      accessor: 'issue_price',
+      render: (row) => row.issue_price || row.price_range || '-'
+    },
+    {
+      header: 'Current Status',
+      accessor: 'status',
+      render: (row) => (
+        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+          {row.status}
+        </span>
+      )
+    }
   ];
 
   return (
@@ -15,39 +60,22 @@ const SMEIPOs = () => {
       <Helmet>
         <title>SME IPOs - IPOshala</title>
       </Helmet>
-      <PageHeader title="SME IPOs" subtitle="Small and Medium Enterprise IPOs on NSE Emerge & BSE SME" />
+
+      <PageHeader
+        title="SME IPOs"
+        subtitle="Small and Medium Enterprise IPOs on NSE Emerge & BSE SME"
+      />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <TableContainer title="Latest SME IPOs" lastUpdated="Today 11:15 AM">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-[#1a2332]">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Company</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Open Date</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Close Date</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Price</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Lot Size</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Issue Size</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {smeData.map((ipo, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#1a2332]">{ipo.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ipo.openDate}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ipo.closeDate}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ipo.price}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ipo.lot}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{ipo.size}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ipo.status === 'Open' ? 'bg-green-100 text-green-800' : ipo.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {ipo.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <TableContainer title="Latest SME IPOs" lastUpdated="Live">
+          <AdvancedTable
+            columns={columns}
+            data={smeData}
+            loading={loading}
+            emptyMessage="No SME IPOs found. The pipeline might be empty."
+            emptyType="ipo"
+            enableFilters={true}
+          />
         </TableContainer>
       </div>
     </>

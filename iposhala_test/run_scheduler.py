@@ -31,15 +31,29 @@ def run_gmp_pipeline():
     except Exception as e:
         logging.error(f"Error executing GMP pipeline: {str(e)}")
 
+def run_nse_upcoming_pipeline():
+    logging.info("Triggering pipeline_nse_upcoming.py ...")
+    try:
+        result = subprocess.run(["python", "iposhala_test/scripts/pipeline_nse_upcoming.py"], capture_output=True, text=True)
+        if result.returncode == 0:
+            logging.info("NSE Upcoming pipeline executed successfully.")
+        else:
+            logging.error(f"NSE Upcoming pipeline failed with exit code {result.returncode}")
+            logging.error(result.stderr)
+    except Exception as e:
+        logging.error(f"Error executing NSE Upcoming pipeline: {str(e)}")
+
 def main():
     logging.info("Starting IPOshala background scheduler...")
     
     # Run once immediately on startup
     run_live_pipeline()
     run_gmp_pipeline()
+    run_nse_upcoming_pipeline()
     
     # Schedule to run every hour
     schedule.every(1).hours.do(run_live_pipeline)
+    schedule.every(1).hours.do(run_nse_upcoming_pipeline)
     
     # Schedule GMP every 30 mins
     schedule.every(30).minutes.do(run_gmp_pipeline)

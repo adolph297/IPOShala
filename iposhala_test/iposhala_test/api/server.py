@@ -4,10 +4,11 @@ from fastapi import HTTPException
 from .routes.ipos import router as ipos_router
 from .routes.company import router as company_router
 from .routes.gmp import router as gmp_router
+from .routes.search import router as search_router
 import requests
 from datetime import datetime
 from iposhala_test.api.routes.docs import router as docs_router
-
+from .routes.analytics import router as analytics_router
 
 # Import Mongo collection
 from iposhala_test.scripts.mongo import ipo_past_master, ipo_live_upcoming, ipo_gmp
@@ -23,7 +24,7 @@ nse_headers = {
 # Allow frontend (Vite / React) to access backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # later restrict in production
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -142,7 +143,9 @@ def get_ipo_stats():
 app.include_router(ipos_router)
 app.include_router(company_router)
 app.include_router(gmp_router)
+app.include_router(search_router)
 app.include_router(docs_router)
+app.include_router(analytics_router)
 
 
 

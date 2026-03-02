@@ -6,7 +6,7 @@ import requests
 import time
 from typing import Optional
 
-from iposhala_test.scripts.mongo import ipo_past_master
+from iposhala_test.scripts.mongo import ipo_past_master, ipo_live_upcoming
 
 router = APIRouter(prefix="/api/docs", tags=["docs"])
 
@@ -51,6 +51,13 @@ def get_doc_source_url(symbol: str, doc_type: str) -> Optional[str]:
         {"symbol": symbol},
         {"documents": 1, "ipo_docs": 1, "symbol": 1, "_id": 0}
     )
+
+    if not doc:
+        # Check upcoming / live as well
+        doc = ipo_live_upcoming.find_one(
+            {"symbol": symbol},
+            {"documents": 1, "symbol": 1, "_id": 0}
+        )
 
     if not doc:
         return None

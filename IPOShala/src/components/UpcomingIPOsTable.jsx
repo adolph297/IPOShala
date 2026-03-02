@@ -1,120 +1,97 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { getUpcomingIPOs } from '../services/ipos';
+import AdvancedTable from './common/AdvancedTable';
 
 const UpcomingIPOsTable = () => {
-  const upcomingIPOs = [
+  const [upcomingIPOs, setUpcomingIPOs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getUpcomingIPOs()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const formatted = data.map(ipo => {
+            const info = ipo.issue_information || {};
+            // Start Date
+            let startDate = info.issue_start_date || 'TBD';
+            if (startDate !== 'TBD' && startDate.includes('-') && !isNaN(new Date(startDate))) {
+              // Formatting might not be strictly necessary if it comes formatted as '04-Mar-2026' from scraping, 
+              // but just in case it's ISO we'll format it, otherwise leave as is.
+              const dt = new Date(startDate);
+              if (!isNaN(dt) && startDate.includes('T')) {
+                startDate = dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+              }
+            }
+            // End Date
+            let endDate = info.issue_end_date || 'TBD';
+            if (endDate !== 'TBD' && endDate.includes('-') && !isNaN(new Date(endDate))) {
+              const dt = new Date(endDate);
+              if (!isNaN(dt) && endDate.includes('T')) {
+                endDate = dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+              }
+            }
+
+            return {
+              companyName: ipo.company_name || ipo.symbol,
+              symbol: ipo.symbol || '-',
+              securityType: ipo.security_type === 'SME' ? 'SME' : 'EQ',
+              startDate: startDate,
+              endDate: endDate,
+              priceRange: info.issue_price && info.issue_price !== '-' ? info.issue_price : 'TBD',
+              issueSize: info.issue_size && info.issue_size !== '-' ? info.issue_size : 'TBD',
+              status: ipo.status || 'Forthcoming',
+              ipo_id: ipo.ipo_id || ipo.symbol
+            };
+          });
+          setUpcomingIPOs(formatted);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch upcoming IPOs:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  const columns = [
+    { header: 'Security Type', accessor: 'securityType' },
     {
-      companyName: 'Digital Payments Ltd',
-      expectedDate: '25-Jan-2026',
-      issueSize: '₹4,500 Cr',
-      exchange: 'NSE, BSE',
-      drhpFiled: 'Yes',
-      status: 'SEBI Approved'
+      header: 'Company Name',
+      accessor: 'companyName',
+      render: (row) => (
+        <Link to={`/ipo/${row.ipo_id}`} className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
+          {row.companyName}
+        </Link>
+      )
     },
+    { header: 'Symbol', accessor: 'symbol' },
+    { header: 'Issue Start Date', accessor: 'startDate' },
+    { header: 'Issue End Date', accessor: 'endDate' },
+    { header: 'Price Range', accessor: 'priceRange' },
+    { header: 'Issue Size', accessor: 'issueSize' },
     {
-      companyName: 'Retail Ventures Inc',
-      expectedDate: '02-Feb-2026',
-      issueSize: '₹1,200 Cr',
-      exchange: 'NSE, BSE',
-      drhpFiled: 'Yes',
-      status: 'SEBI Approved'
-    },
-    {
-      companyName: 'Auto Components Pro',
-      expectedDate: '10-Feb-2026',
-      issueSize: '₹850 Cr',
-      exchange: 'NSE',
-      drhpFiled: 'Yes',
-      status: 'Under Review'
-    },
-    {
-      companyName: 'Food & Beverages Co',
-      expectedDate: '15-Feb-2026',
-      issueSize: '₹2,100 Cr',
-      exchange: 'NSE, BSE',
-      drhpFiled: 'Yes',
-      status: 'SEBI Approved'
-    },
-    {
-      companyName: 'Manufacturing Hub',
-      expectedDate: '20-Feb-2026',
-      issueSize: '₹3,300 Cr',
-      exchange: 'BSE',
-      drhpFiled: 'No',
-      status: 'Expected'
-    },
-    {
-      companyName: 'Logistics Express',
-      expectedDate: '28-Feb-2026',
-      issueSize: '₹1,750 Cr',
-      exchange: 'NSE, BSE',
-      drhpFiled: 'Yes',
-      status: 'Under Review'
+      header: 'Status',
+      accessor: 'status',
+      render: (row) => (
+        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 uppercase`}>
+          {row.status}
+        </span>
+      )
     }
   ];
 
   return (
     <div>
       <h2 className="text-2xl font-bold text-[#1a2332] mb-6">Upcoming IPOs</h2>
-      <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-[#1a2332]">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                  Company Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                  Expected Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                  Issue Size
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                  Exchange
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                  DRHP Filed
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {upcomingIPOs.map((ipo, index) => (
-                <tr key={index} className="hover:bg-gray-50 transition-colors duration-150">
-                  <td className="px-4 py-4 text-sm font-medium text-[#1a2332]">
-                    {ipo.companyName}
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    {ipo.expectedDate}
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    {ipo.issueSize}
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    {ipo.exchange}
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    {ipo.drhpFiled}
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      ipo.status === 'SEBI Approved' 
-                        ? 'bg-green-100 text-green-800' 
-                        : ipo.status === 'Under Review'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {ipo.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <AdvancedTable
+        columns={columns}
+        data={upcomingIPOs}
+        loading={loading}
+        emptyMessage="No Upcoming IPOs found in the pipeline."
+        emptyType="calendar"
+      />
     </div>
   );
 };
